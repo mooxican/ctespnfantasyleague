@@ -32,16 +32,74 @@ const makeAbbrev = (name) => {
   return (cleaned.slice(0, 3) || 'TM').toUpperCase();
 };
 
+// ============ FALLBACK MOCK DATA ============
+// Used only when the Sleeper API can't be reached (e.g. inside the artifact preview sandbox).
+// In a real local environment, the live fetch will succeed and this never runs.
+const FALLBACK_DATA = {
+  teams: [
+    { id: '1', rosterId: 1, name: 'Touchdown Tornadoes',  owner: 'mike_22',     avatar: null, wins: 10, losses: 3, ties: 0, pointsFor: 1542.8, pointsAgainst: 1390.2, playerIds: ['4046','6786','4035','4983','6770','8155','6938','5849','4866','4034'], starters: ['4046','6786','4035','4983','6770','8155','6938'], primary: '#1E40AF', abbrev: 'TDT' },
+    { id: '2', rosterId: 2, name: 'Gridiron Gladiators',  owner: 'sarah_b',     avatar: null, wins: 9,  losses: 4, ties: 0, pointsFor: 1510.4, pointsAgainst: 1402.1, playerIds: ['4881','7564','4866','5849','6770','4035','5859','8112','6797','4983'], starters: ['4881','7564','4866','5849','6770','4035','5859'], primary: '#B91C1C', abbrev: 'GGD' },
+    { id: '3', rosterId: 3, name: 'End Zone Empire',      owner: 'dave_w',      avatar: null, wins: 8,  losses: 5, ties: 0, pointsFor: 1488.7, pointsAgainst: 1455.6, playerIds: ['6770','4983','5859','4866','8155','5849','4046','4034','6786','4881'], starters: ['6770','4983','5859','4866','8155','5849','4046'], primary: '#15803D', abbrev: 'EZE' },
+    { id: '4', rosterId: 4, name: 'Hail Mary Heroes',     owner: 'jen_p',       avatar: null, wins: 7,  losses: 6, ties: 0, pointsFor: 1470.2, pointsAgainst: 1465.9, playerIds: ['5849','4866','8112','6797','4881','7564','4035','5859','6770','4983'], starters: ['5849','4866','8112','6797','4881','7564','4035'], primary: '#7C3AED', abbrev: 'HMH' },
+    { id: '5', rosterId: 5, name: 'Pigskin Pirates',      owner: 'tony_k',      avatar: null, wins: 7,  losses: 6, ties: 0, pointsFor: 1455.1, pointsAgainst: 1470.3, playerIds: ['6786','4034','4046','8155','6938','4881','5859','6797','4866','7564'], starters: ['6786','4034','4046','8155','6938','4881','5859'], primary: '#BE185D', abbrev: 'PSP' },
+    { id: '6', rosterId: 6, name: 'Fourth Down Phantoms', owner: 'chris_l',     avatar: null, wins: 6,  losses: 7, ties: 0, pointsFor: 1432.6, pointsAgainst: 1489.4, playerIds: ['4035','6770','5849','6797','4866','4881','7564','6786','4046','8155'], starters: ['4035','6770','5849','6797','4866','4881','7564'], primary: '#0F766E', abbrev: 'FDP' },
+    { id: '7', rosterId: 7, name: 'Red Zone Renegades',   owner: 'alex_h',      avatar: null, wins: 5,  losses: 8, ties: 0, pointsFor: 1410.3, pointsAgainst: 1510.7, playerIds: ['8112','6797','4881','7564','4035','5859','6770','4983','4866','5849'], starters: ['8112','6797','4881','7564','4035','5859','6770'], primary: '#C2410C', abbrev: 'RZR' },
+    { id: '8', rosterId: 8, name: 'Blitz Brigade',        owner: 'pat_m',       avatar: null, wins: 4,  losses: 9, ties: 0, pointsFor: 1380.9, pointsAgainst: 1532.4, playerIds: ['4034','4046','8155','6938','4881','5859','6797','4866','7564','6770'], starters: ['4034','4046','8155','6938','4881','5859','6797'], primary: '#4338CA', abbrev: 'BBR' },
+  ],
+  // Sample player database (real Sleeper player IDs map to real NFL players)
+  players: {
+    '4046': { full_name: 'Patrick Mahomes', position: 'QB', team: 'KC',  age: 29 },
+    '6786': { full_name: 'Josh Allen',      position: 'QB', team: 'BUF', age: 28 },
+    '4881': { full_name: 'Lamar Jackson',   position: 'QB', team: 'BAL', age: 28 },
+    '6770': { full_name: 'Joe Burrow',      position: 'QB', team: 'CIN', age: 28 },
+    '4034': { full_name: 'Christian McCaffrey', position: 'RB', team: 'SF', age: 28 },
+    '4035': { full_name: 'Saquon Barkley',  position: 'RB', team: 'PHI', age: 28 },
+    '4983': { full_name: 'Derrick Henry',   position: 'RB', team: 'BAL', age: 30 },
+    '7564': { full_name: 'Bijan Robinson',  position: 'RB', team: 'ATL', age: 23 },
+    '6797': { full_name: "Ja'Marr Chase",   position: 'WR', team: 'CIN', age: 25 },
+    '8112': { full_name: 'CeeDee Lamb',     position: 'WR', team: 'DAL', age: 26 },
+    '4866': { full_name: 'Tyreek Hill',     position: 'WR', team: 'MIA', age: 31 },
+    '5849': { full_name: 'A.J. Brown',      position: 'WR', team: 'PHI', age: 27 },
+    '8155': { full_name: 'Sam LaPorta',     position: 'TE', team: 'DET', age: 24 },
+    '6938': { full_name: 'Travis Kelce',    position: 'TE', team: 'KC',  age: 35 },
+    '5859': { full_name: 'Mark Andrews',    position: 'TE', team: 'BAL', age: 29 },
+  },
+  // Generate 4 weeks of matchups
+  matchupsByWeek: (() => {
+    const weeks = {};
+    const pairings = [
+      // week 1
+      [[1,2],[3,4],[5,6],[7,8]],
+      // week 2
+      [[1,3],[2,4],[5,7],[6,8]],
+      // week 3
+      [[1,4],[2,3],[5,8],[6,7]],
+      // week 4 (current week)
+      [[1,5],[2,6],[3,7],[4,8]],
+    ];
+    pairings.forEach((week, wi) => {
+      weeks[wi + 1] = [];
+      week.forEach(([a, b], mi) => {
+        const ptsA = Math.round((90 + Math.random() * 60) * 10) / 10;
+        const ptsB = Math.round((90 + Math.random() * 60) * 10) / 10;
+        weeks[wi + 1].push({ roster_id: a, matchup_id: mi + 1, points: ptsA });
+        weeks[wi + 1].push({ roster_id: b, matchup_id: mi + 1, points: ptsB });
+      });
+    });
+    return weeks;
+  })(),
+  currentWeek: 4,
+};
+
 // ============ LIVE DATA HOOK ============
 function useLeagueData() {
-  const [data, setData] = useState({ loading: true, error: null, league: null, teams: [], players: {}, currentWeek: 1, matchupsByWeek: {} });
+  const [data, setData] = useState({ loading: true, error: null, usingFallback: false, league: null, teams: [], players: {}, currentWeek: 1, matchupsByWeek: {} });
 
   useEffect(() => {
     let cancelled = false;
 
     async function load() {
       try {
-        // 1. League info + users + rosters + NFL state in parallel
         const [leagueRes, usersRes, rostersRes, stateRes] = await Promise.all([
           fetch(`${SLEEPER_API}/league/${LEAGUE_ID}`),
           fetch(`${SLEEPER_API}/league/${LEAGUE_ID}/users`),
@@ -54,7 +112,6 @@ function useLeagueData() {
 
         const currentWeek = Math.max(1, Math.min(nflState.week || 1, 18));
 
-        // 2. Merge users + rosters into "teams"
         const teams = rosters.map((roster, i) => {
           const owner = users.find(u => u.user_id === roster.owner_id);
           const teamName = owner?.metadata?.team_name || owner?.display_name || `Team ${roster.roster_id}`;
@@ -76,7 +133,6 @@ function useLeagueData() {
           };
         }).sort((a, b) => b.wins - a.wins || b.pointsFor - a.pointsFor);
 
-        // 3. Fetch all weekly matchups up through current week (parallel)
         const weeksToFetch = Array.from({ length: currentWeek }, (_, i) => i + 1);
         const matchupResults = await Promise.all(
           weeksToFetch.map(w => fetch(`${SLEEPER_API}/league/${LEAGUE_ID}/matchups/${w}`).then(r => r.json()))
@@ -84,14 +140,26 @@ function useLeagueData() {
         const matchupsByWeek = {};
         weeksToFetch.forEach((w, i) => { matchupsByWeek[w] = matchupResults[i]; });
 
-        // 4. Fetch all NFL players (large file ~5MB — cached after first load)
         const playersRes = await fetch(`${SLEEPER_API}/players/nfl`);
         const players = await playersRes.json();
 
         if (cancelled) return;
-        setData({ loading: false, error: null, league, teams, players, currentWeek, matchupsByWeek });
+        setData({ loading: false, error: null, usingFallback: false, league, teams, players, currentWeek, matchupsByWeek });
       } catch (err) {
-        if (!cancelled) setData(d => ({ ...d, loading: false, error: err.message }));
+        // Sleeper API unreachable (e.g. inside an artifact preview sandbox).
+        // Fall back to demo data so the design is still viewable.
+        if (cancelled) return;
+        console.warn('Sleeper API blocked, using demo data:', err.message);
+        setData({
+          loading: false,
+          error: null,
+          usingFallback: true,
+          league: { name: 'Demo League' },
+          teams: FALLBACK_DATA.teams,
+          players: FALLBACK_DATA.players,
+          currentWeek: FALLBACK_DATA.currentWeek,
+          matchupsByWeek: FALLBACK_DATA.matchupsByWeek,
+        });
       }
     }
 
@@ -554,40 +622,80 @@ function TeamRoster({ team, players }) {
     return p ? {
       id: pid,
       name: p.full_name || `${p.first_name || ''} ${p.last_name || ''}`.trim() || pid,
-      pos: p.position || '—',
+      pos: p.position || 'OTHER',
       team: p.team || 'FA',
       age: p.age || '—',
       isStarter: starters.has(pid),
-    } : { id: pid, name: pid, pos: '—', team: 'FA', age: '—', isStarter: starters.has(pid) };
-  }).sort((a, b) => (b.isStarter - a.isStarter) || a.pos.localeCompare(b.pos));
+    } : { id: pid, name: pid, pos: 'OTHER', team: 'FA', age: '—', isStarter: starters.has(pid) };
+  });
+
+  // Group players by position
+  const POSITION_ORDER = ['QB', 'RB', 'WR', 'TE', 'K', 'DEF', 'OTHER'];
+  const POSITION_LABELS = {
+    QB: 'Quarterbacks',
+    RB: 'Running Backs',
+    WR: 'Wide Receivers',
+    TE: 'Tight Ends',
+    K: 'Kickers',
+    DEF: 'Defense',
+    OTHER: 'Other',
+  };
+
+  const grouped = {};
+  rosterPlayers.forEach(p => {
+    const key = POSITION_ORDER.includes(p.pos) ? p.pos : 'OTHER';
+    if (!grouped[key]) grouped[key] = [];
+    grouped[key].push(p);
+  });
+
+  // Sort each group: starters first, then by name
+  Object.values(grouped).forEach(group =>
+    group.sort((a, b) => (b.isStarter - a.isStarter) || a.name.localeCompare(b.name))
+  );
+
+  const orderedPositions = POSITION_ORDER.filter(p => grouped[p]?.length);
 
   return (
-    <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-      <div className="px-6 py-4 border-b border-gray-200">
-        <h2 className="text-xl font-display font-black text-gray-900 uppercase tracking-tight">Roster ({rosterPlayers.length})</h2>
+    <div className="space-y-6">
+      <div className="flex items-baseline justify-between">
+        <h2 className="text-2xl font-display font-black text-gray-900 uppercase tracking-tight">Roster</h2>
+        <span className="text-sm text-gray-500 font-bold">{rosterPlayers.length} PLAYERS</span>
       </div>
-      <div className="grid grid-cols-12 text-xs font-bold text-gray-500 uppercase tracking-wider px-6 py-3 border-b border-gray-200 bg-gray-50">
-        <span className="col-span-1">Pos</span>
-        <span className="col-span-6">Player</span>
-        <span className="col-span-2">NFL</span>
-        <span className="col-span-2">Age</span>
-        <span className="col-span-1 text-right">Role</span>
-      </div>
-      {rosterPlayers.map((p) => (
-        <div key={p.id} className="grid grid-cols-12 items-center px-6 py-3 border-b border-gray-100 last:border-0 hover:bg-blue-50/50 transition-colors">
-          <span className="col-span-1">
-            <span className="inline-block px-2 py-0.5 bg-gray-100 text-gray-700 text-xs font-bold rounded">{p.pos}</span>
-          </span>
-          <span className="col-span-6 font-bold text-gray-900 truncate">{p.name}</span>
-          <span className="col-span-2 text-gray-700 text-sm">{p.team}</span>
-          <span className="col-span-2 text-gray-700">{p.age}</span>
-          <span className="col-span-1 text-right">
-            {p.isStarter ? (
-              <span className="text-xs font-black text-blue-700">START</span>
-            ) : (
-              <span className="text-xs text-gray-400 font-bold">BENCH</span>
-            )}
-          </span>
+
+      {orderedPositions.map(pos => (
+        <div key={pos} className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+          <div className="px-6 py-3 border-b border-gray-200 bg-gray-50 flex items-center gap-3">
+            <span
+              className="inline-block px-2.5 py-1 text-xs font-black text-white rounded"
+              style={{ backgroundColor: team.primary }}
+            >
+              {pos}
+            </span>
+            <h3 className="text-base font-display font-black text-gray-900 uppercase tracking-tight">
+              {POSITION_LABELS[pos]}
+            </h3>
+            <span className="text-xs text-gray-500 font-bold ml-auto">{grouped[pos].length}</span>
+          </div>
+          <div className="grid grid-cols-12 text-xs font-bold text-gray-500 uppercase tracking-wider px-6 py-2 border-b border-gray-100">
+            <span className="col-span-7">Player</span>
+            <span className="col-span-2">NFL</span>
+            <span className="col-span-2">Age</span>
+            <span className="col-span-1 text-right">Role</span>
+          </div>
+          {grouped[pos].map(p => (
+            <div key={p.id} className="grid grid-cols-12 items-center px-6 py-3 border-b border-gray-100 last:border-0 hover:bg-blue-50/50 transition-colors">
+              <span className="col-span-7 font-bold text-gray-900 truncate">{p.name}</span>
+              <span className="col-span-2 text-gray-700 text-sm">{p.team}</span>
+              <span className="col-span-2 text-gray-700">{p.age}</span>
+              <span className="col-span-1 text-right">
+                {p.isStarter ? (
+                  <span className="text-xs font-black text-blue-700">START</span>
+                ) : (
+                  <span className="text-xs text-gray-400 font-bold">BENCH</span>
+                )}
+              </span>
+            </div>
+          ))}
         </div>
       ))}
     </div>
@@ -687,6 +795,11 @@ export default function App() {
 
       <div className="min-h-screen bg-white text-gray-900 font-sans">
         <Navbar currentPage={page} setPage={setPage} />
+        {data.usingFallback && !data.loading && (
+          <div className="bg-amber-50 border-b border-amber-200 px-4 py-2 text-center text-amber-900 text-sm">
+            <strong>Demo Mode</strong> — Sleeper API is blocked in this preview. Run locally to see your real league data.
+          </div>
+        )}
         {data.loading ? <LoadingScreen /> :
          data.error ? <ErrorScreen error={data.error} /> :
          <>
