@@ -55,6 +55,7 @@ const articles = [
     teamIds: [3, 5, 6],
   },
 ];
+
 // Articles sorted newest-first by date. Used across the site.
 const articlesByDate = [...articles].sort((a, b) => new Date(b.date) - new Date(a.date));
 
@@ -205,7 +206,7 @@ async function fetchPastSeason(leagueId) {
 
 // ============ LIVE DATA HOOK ============
 function useLeagueData() {
-  const [data, setData] = useState({ loading: true, error: null, usingFallback: false, league: null, teams: [], players: {}, currentWeek: 1, season: String(new Date().getFullYear()), matchupsByWeek: {}, transactions: [], history: [] });
+  const [data, setData] = useState({ loading: true, error: null, usingFallback: false, league: null, teams: [], players: {}, currentWeek: 1, season: String(new Date().getFullYear()), matchupsByWeek: {}, transactions: [], history: [], draftPicks: {} });
 
   useEffect(() => {
     let cancelled = false;
@@ -268,6 +269,38 @@ function useLeagueData() {
         const playersRes = await fetch(`${SLEEPER_API}/players/nfl`);
         const players = await playersRes.json();
 
+        // Fetch the league's drafts, then each draft's picks.
+        // Build a lookup: player_id -> { round, pick, draftType, season }
+        const draftPicks = {};
+        try {
+          const draftsRes = await fetch(`${SLEEPER_API}/league/${LEAGUE_ID}/drafts`);
+          const drafts = await draftsRes.json();
+          if (Array.isArray(drafts) && drafts.length) {
+            const allPicks = await Promise.all(
+              drafts.map(d =>
+                fetch(`${SLEEPER_API}/draft/${d.draft_id}/picks`)
+                  .then(r => r.json())
+                  .then(picks => ({ draft: d, picks }))
+                  .catch(() => ({ draft: d, picks: [] }))
+              )
+            );
+            allPicks.forEach(({ draft, picks }) => {
+              (picks || []).forEach(p => {
+                if (p.player_id) {
+                  draftPicks[p.player_id] = {
+                    round: p.round,
+                    pick: p.pick_no,
+                    draftType: draft.type || 'draft',
+                    season: draft.season,
+                  };
+                }
+              });
+            });
+          }
+        } catch (e) {
+          console.warn('Could not load draft data:', e.message);
+        }
+
         // Walk the previous_league_id chain to collect past seasons.
         // Capped at 10 to avoid runaway loops on very old leagues.
         const history = [];
@@ -286,7 +319,7 @@ function useLeagueData() {
         }
 
         if (cancelled) return;
-        setData({ loading: false, error: null, usingFallback: false, league, teams, players, currentWeek, season, matchupsByWeek, transactions, history });
+        setData({ loading: false, error: null, usingFallback: false, league, teams, players, currentWeek, season, matchupsByWeek, transactions, history, draftPicks });
       } catch (err) {
         // Sleeper API unreachable (e.g. inside an artifact preview sandbox).
         // Fall back to demo data so the design is still viewable.
@@ -304,6 +337,7 @@ function useLeagueData() {
           matchupsByWeek: FALLBACK_DATA.matchupsByWeek,
           transactions: [],
           history: [],
+          draftPicks: {},
         });
       }
     }
@@ -1288,7 +1322,6 @@ function ArticlePage({ articleId, data, setPage, setActiveTeam }) {
   );
 }
 
-// ============ PLAYER PAGE ============
 // ============ HISTORY PAGE ============
 function HistoryPage({ data, setPage, setActiveTeam }) {
   const { history } = data;
@@ -1634,31 +1667,53 @@ function PlayersPage({ data, openPlayer }) {
 
 // ============ PLAYER PAGE ============
 function PlayerPage({ playerId, data, setPage, setActiveTeam }) {
-  const { players, teams, season } = data;
+  const { players, teams, season, transactions, history, draftPicks } = data;
   const player = players[playerId];
 
-  // Stats are fetched on demand when the page opens
+  // Which tab is showing
+  const [tab, setTab] = useState('Profile');
+  // Current-season stats — fetched on demand
   const [stats, setStats] = useState({ loading: true, error: false, data: null });
+  // Past-season stats — one entry per past season
+  const [pastStats, setPastStats] = useState({ loading: true, data: [] });
 
   useEffect(() => {
     let cancelled = false;
     setStats({ loading: true, error: false, data: null });
+    setPastStats({ loading: true, data: [] });
 
     if (!playerId) return;
 
+    // Current season
     fetch(`${SLEEPER_STATS_API}/stats/nfl/player/${playerId}?season=${season}&season_type=regular&grouping=season`)
       .then(r => r.json())
       .then(json => {
         if (cancelled) return;
-        // The endpoint returns an object with a `stats` sub-object (or null)
         setStats({ loading: false, error: false, data: json?.stats || null });
       })
       .catch(() => {
         if (!cancelled) setStats({ loading: false, error: true, data: null });
       });
 
+    // Past seasons — one stats call per season in history
+    const pastSeasonYears = (history || []).map(h => h.season).filter(Boolean);
+    if (pastSeasonYears.length === 0) {
+      setPastStats({ loading: false, data: [] });
+    } else {
+      Promise.all(
+        pastSeasonYears.map(yr =>
+          fetch(`${SLEEPER_STATS_API}/stats/nfl/player/${playerId}?season=${yr}&season_type=regular&grouping=season`)
+            .then(r => r.json())
+            .then(json => ({ season: yr, stats: json?.stats || null }))
+            .catch(() => ({ season: yr, stats: null }))
+        )
+      ).then(results => {
+        if (!cancelled) setPastStats({ loading: false, data: results });
+      });
+    }
+
     return () => { cancelled = true; };
-  }, [playerId, season]);
+  }, [playerId, season, history]);
 
   if (!player) {
     return (
@@ -1676,6 +1731,26 @@ function PlayerPage({ playerId, data, setPage, setActiveTeam }) {
   // Find which league team rosters this player
   const rosteredBy = teams.find(t => (t.playerIds || []).includes(String(playerId)));
   const isStarter = rosteredBy?.starters?.includes(String(playerId));
+
+  // Draft pick info for this player (if any)
+  const draftInfo = draftPicks?.[String(playerId)] || null;
+
+  // This player's transaction history in the league
+  const teamByRoster = {};
+  teams.forEach(t => { teamByRoster[t.rosterId] = t; });
+  const playerTransactions = (transactions || [])
+    .filter(txn => {
+      const adds = txn.adds || {};
+      const drops = txn.drops || {};
+      return adds[String(playerId)] != null || drops[String(playerId)] != null;
+    })
+    .map(txn => {
+      const adds = txn.adds || {};
+      const drops = txn.drops || {};
+      const addedTo = adds[String(playerId)] != null ? teamByRoster[adds[String(playerId)]] : null;
+      const droppedFrom = drops[String(playerId)] != null ? teamByRoster[drops[String(playerId)]] : null;
+      return { txn, addedTo, droppedFrom };
+    });
 
   // Convert height (Sleeper gives inches as a string sometimes) to ft-in
   const formatHeight = (h) => {
@@ -1748,7 +1823,18 @@ function PlayerPage({ playerId, data, setPage, setActiveTeam }) {
     { key: 'pts_ppr', label: 'PPR Pts' },
   ];
 
+  const fmtNum = (val) =>
+    val != null ? (Number.isInteger(val) ? val : val.toFixed(1)) : '0';
+  const fmtDate = (ms) =>
+    ms ? new Date(ms).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '';
+
   const accent = rosteredBy?.primary || '#1D4ED8';
+
+  // Only show the History tab if the league has past seasons
+  const hasHistory = history && history.length > 0;
+  const tabs = hasHistory
+    ? ['Profile', 'Stats', 'History', 'Transactions']
+    : ['Profile', 'Stats', 'Transactions'];
 
   return (
     <div className="bg-gray-50 min-h-screen">
@@ -1775,82 +1861,220 @@ function PlayerPage({ playerId, data, setPage, setActiveTeam }) {
         </div>
       </div>
 
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 py-8 space-y-6">
-        <div className="grid lg:grid-cols-3 gap-6">
-          {/* Profile details */}
-          <div className="lg:col-span-2 bg-white rounded-xl border border-gray-200 p-6">
-            <h2 className="text-xl font-display font-black text-gray-900 mb-4 uppercase tracking-tight">Profile</h2>
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-              {profileFields.map(f => (
-                <div key={f.label}>
-                  <div className="text-xs font-bold text-gray-500 uppercase tracking-widest">{f.label}</div>
-                  <div className="text-gray-900 font-bold mt-1">{f.value}</div>
-                </div>
-              ))}
-            </div>
-          </div>
+      {/* Tab bar */}
+      <div className="bg-white border-b border-gray-200 sticky top-16 z-40">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 flex gap-1">
+          {tabs.map(t => (
+            <button key={t} onClick={() => setTab(t)}
+              className={`px-5 py-4 text-sm font-bold uppercase tracking-wider transition-colors relative ${
+                tab === t ? 'text-blue-700' : 'text-gray-600 hover:text-gray-900'
+              }`}>
+              {t}
+              {tab === t && <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-blue-700" />}
+            </button>
+          ))}
+        </div>
+      </div>
 
-          {/* Rostered-by card */}
-          <div>
-            <div className="bg-white rounded-xl border border-gray-200 p-5">
-              <div className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-3">Fantasy Status</div>
-              {rosteredBy ? (
-                <>
-                  <button
-                    onClick={() => { setActiveTeam(rosteredBy.id); setPage('TeamHub'); window.scrollTo(0, 0); }}
-                    className="flex items-center gap-3 w-full text-left rounded-lg p-2 -m-2 hover:bg-gray-50 transition-colors"
-                  >
-                    <span className="w-10 h-10 flex items-center justify-center font-black text-white text-sm rounded shrink-0" style={{ backgroundColor: rosteredBy.primary }}>
-                      {rosteredBy.abbrev}
-                    </span>
-                    <div className="min-w-0">
-                      <div className="font-bold text-gray-900 truncate hover:text-blue-700">{rosteredBy.name}</div>
-                      <div className="text-xs text-gray-500 truncate">{rosteredBy.owner}</div>
-                    </div>
-                  </button>
-                  <div className="mt-3 pt-3 border-t border-gray-100">
-                    <span className={`text-xs font-black ${isStarter ? 'text-blue-700' : 'text-gray-400'}`}>
-                      {isStarter ? 'IN STARTING LINEUP' : 'ON BENCH'}
-                    </span>
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 py-8">
+        {/* ===== PROFILE TAB ===== */}
+        {tab === 'Profile' && (
+          <div className="grid lg:grid-cols-3 gap-6">
+            <div className="lg:col-span-2 bg-white rounded-xl border border-gray-200 p-6">
+              <h2 className="text-xl font-display font-black text-gray-900 mb-4 uppercase tracking-tight">Profile</h2>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                {profileFields.map(f => (
+                  <div key={f.label}>
+                    <div className="text-xs font-bold text-gray-500 uppercase tracking-widest">{f.label}</div>
+                    <div className="text-gray-900 font-bold mt-1">{f.value}</div>
                   </div>
-                </>
-              ) : (
-                <div className="text-sm text-gray-500">Not rostered in this league (free agent).</div>
+                ))}
+              </div>
+              {draftInfo && (
+                <div className="mt-4 pt-4 border-t border-gray-100">
+                  <div className="text-xs font-bold text-gray-500 uppercase tracking-widest">Drafted</div>
+                  <div className="text-gray-900 font-bold mt-1">
+                    {draftInfo.season} · Round {draftInfo.round}, Pick {draftInfo.pick}
+                    <span className="text-gray-400 font-semibold ml-2 capitalize">({draftInfo.draftType})</span>
+                  </div>
+                </div>
               )}
             </div>
-          </div>
-        </div>
 
-        {/* Season stats */}
-        <div className="bg-white rounded-xl border border-gray-200 p-6">
-          <h2 className="text-xl font-display font-black text-gray-900 mb-4 uppercase tracking-tight">
-            {season} Season Stats
-          </h2>
-          {stats.loading ? (
-            <div className="flex items-center gap-3 text-gray-500 text-sm">
-              <div className="w-4 h-4 border-2 border-blue-700 border-t-transparent rounded-full animate-spin" />
-              Loading stats…
-            </div>
-          ) : stats.error ? (
-            <p className="text-gray-500 text-sm">Stats couldn't be loaded right now.</p>
-          ) : !stats.data ? (
-            <p className="text-gray-500 text-sm">No stats recorded for this player this season.</p>
-          ) : (
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
-              {statSet.map(s => {
-                const val = stats.data[s.key];
-                return (
-                  <div key={s.key} className="text-center">
-                    <div className="text-3xl font-display font-black text-gray-900">
-                      {val != null ? (Number.isInteger(val) ? val : val.toFixed(1)) : '0'}
+            <div>
+              <div className="bg-white rounded-xl border border-gray-200 p-5">
+                <div className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-3">Fantasy Status</div>
+                {rosteredBy ? (
+                  <>
+                    <button
+                      onClick={() => { setActiveTeam(rosteredBy.id); setPage('TeamHub'); window.scrollTo(0, 0); }}
+                      className="flex items-center gap-3 w-full text-left rounded-lg p-2 -m-2 hover:bg-gray-50 transition-colors"
+                    >
+                      <span className="w-10 h-10 flex items-center justify-center font-black text-white text-sm rounded shrink-0" style={{ backgroundColor: rosteredBy.primary }}>
+                        {rosteredBy.abbrev}
+                      </span>
+                      <div className="min-w-0">
+                        <div className="font-bold text-gray-900 truncate hover:text-blue-700">{rosteredBy.name}</div>
+                        <div className="text-xs text-gray-500 truncate">{rosteredBy.owner}</div>
+                      </div>
+                    </button>
+                    <div className="mt-3 pt-3 border-t border-gray-100">
+                      <span className={`text-xs font-black ${isStarter ? 'text-blue-700' : 'text-gray-400'}`}>
+                        {isStarter ? 'IN STARTING LINEUP' : 'ON BENCH'}
+                      </span>
                     </div>
-                    <div className="text-xs font-bold text-gray-500 uppercase tracking-widest mt-1">{s.label}</div>
-                  </div>
-                );
-              })}
+                  </>
+                ) : (
+                  <div className="text-sm text-gray-500">Not rostered in this league (free agent).</div>
+                )}
+              </div>
             </div>
-          )}
-        </div>
+          </div>
+        )}
+
+        {/* ===== STATS TAB ===== */}
+        {tab === 'Stats' && (
+          <div className="bg-white rounded-xl border border-gray-200 p-6">
+            <h2 className="text-xl font-display font-black text-gray-900 mb-4 uppercase tracking-tight">
+              {season} Season Stats
+            </h2>
+            {stats.loading ? (
+              <div className="flex items-center gap-3 text-gray-500 text-sm">
+                <div className="w-4 h-4 border-2 border-blue-700 border-t-transparent rounded-full animate-spin" />
+                Loading stats…
+              </div>
+            ) : stats.error ? (
+              <p className="text-gray-500 text-sm">Stats couldn't be loaded right now.</p>
+            ) : !stats.data ? (
+              <p className="text-gray-500 text-sm">No stats recorded for this player this season.</p>
+            ) : (
+              <>
+                <div className="flex flex-wrap gap-3 mb-5">
+                  <div className="bg-blue-700 text-white rounded-lg px-5 py-3">
+                    <div className="text-3xl font-display font-black">{fmtNum(stats.data.pts_ppr)}</div>
+                    <div className="text-xs font-bold uppercase tracking-widest text-blue-100">Fantasy Pts (PPR)</div>
+                  </div>
+                  <div className="bg-gray-100 rounded-lg px-5 py-3">
+                    <div className="text-3xl font-display font-black text-gray-900">{fmtNum(stats.data.pts_half_ppr)}</div>
+                    <div className="text-xs font-bold uppercase tracking-widest text-gray-500">Half-PPR</div>
+                  </div>
+                  <div className="bg-gray-100 rounded-lg px-5 py-3">
+                    <div className="text-3xl font-display font-black text-gray-900">{fmtNum(stats.data.pts_std)}</div>
+                    <div className="text-xs font-bold uppercase tracking-widest text-gray-500">Standard</div>
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
+                  {statSet.map(s => (
+                    <div key={s.key} className="text-center">
+                      <div className="text-3xl font-display font-black text-gray-900">{fmtNum(stats.data[s.key])}</div>
+                      <div className="text-xs font-bold text-gray-500 uppercase tracking-widest mt-1">{s.label}</div>
+                    </div>
+                  ))}
+                </div>
+              </>
+            )}
+          </div>
+        )}
+
+        {/* ===== HISTORY TAB ===== */}
+        {tab === 'History' && hasHistory && (
+          <div className="bg-white rounded-xl border border-gray-200 p-6">
+            <h2 className="text-xl font-display font-black text-gray-900 mb-4 uppercase tracking-tight">
+              Past Seasons
+            </h2>
+            {pastStats.loading ? (
+              <div className="flex items-center gap-3 text-gray-500 text-sm">
+                <div className="w-4 h-4 border-2 border-blue-700 border-t-transparent rounded-full animate-spin" />
+                Loading past stats…
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="text-xs font-bold text-gray-500 uppercase tracking-wider border-b border-gray-200">
+                      <th className="text-left py-2 pr-4">Season</th>
+                      <th className="text-right py-2 px-3">PPR</th>
+                      {statSet.map(s => (
+                        <th key={s.key} className="text-right py-2 px-3 whitespace-nowrap">{s.label}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {pastStats.data.map(row => (
+                      <tr key={row.season} className="border-b border-gray-100 last:border-0">
+                        <td className="py-2.5 pr-4 font-display font-black text-gray-900">{row.season}</td>
+                        {row.stats ? (
+                          <>
+                            <td className="text-right py-2.5 px-3 font-bold text-blue-700">{fmtNum(row.stats.pts_ppr)}</td>
+                            {statSet.map(s => (
+                              <td key={s.key} className="text-right py-2.5 px-3 text-gray-700">{fmtNum(row.stats[s.key])}</td>
+                            ))}
+                          </>
+                        ) : (
+                          <td colSpan={statSet.length + 1} className="text-right py-2.5 px-3 text-gray-400 italic">
+                            No stats
+                          </td>
+                        )}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ===== TRANSACTIONS TAB ===== */}
+        {tab === 'Transactions' && (
+          <div className="bg-white rounded-xl border border-gray-200 p-6">
+            <h2 className="text-xl font-display font-black text-gray-900 mb-4 uppercase tracking-tight">
+              League Transactions
+            </h2>
+            {playerTransactions.length === 0 ? (
+              <p className="text-gray-500 text-sm">No transactions involving this player this season.</p>
+            ) : (
+              <div className="space-y-2">
+                {playerTransactions.map(({ txn, addedTo, droppedFrom }) => {
+                  const TYPE_LABEL = { trade: 'TRADE', waiver: 'WAIVER', free_agent: 'FREE AGENT' };
+                  const TYPE_COLOR = { trade: '#7C3AED', waiver: '#0F766E', free_agent: '#C2410C' };
+                  return (
+                    <div key={txn.transaction_id} className="flex items-center gap-3 flex-wrap py-2 border-b border-gray-100 last:border-0">
+                      <span
+                        className="inline-block px-2 py-0.5 text-[10px] font-black text-white rounded shrink-0"
+                        style={{ backgroundColor: TYPE_COLOR[txn.type] || '#6B7280' }}
+                      >
+                        {TYPE_LABEL[txn.type] || (txn.type || 'MOVE').toUpperCase()}
+                      </span>
+                      <span className="text-xs text-gray-400 font-semibold">Wk {txn.week} · {fmtDate(txn.status_updated)}</span>
+                      {addedTo && (
+                        <span className="text-sm text-gray-700">
+                          <span className="text-green-600 font-black">+</span> Added to{' '}
+                          <button
+                            onClick={() => { setActiveTeam(addedTo.id); setPage('TeamHub'); window.scrollTo(0, 0); }}
+                            className="font-bold text-gray-900 hover:text-blue-700"
+                          >
+                            {addedTo.name}
+                          </button>
+                        </span>
+                      )}
+                      {droppedFrom && (
+                        <span className="text-sm text-gray-700">
+                          <span className="text-red-600 font-black">−</span> Dropped from{' '}
+                          <button
+                            onClick={() => { setActiveTeam(droppedFrom.id); setPage('TeamHub'); window.scrollTo(0, 0); }}
+                            className="font-bold text-gray-900 hover:text-blue-700"
+                          >
+                            {droppedFrom.name}
+                          </button>
+                        </span>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );
