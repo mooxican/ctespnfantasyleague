@@ -55,7 +55,6 @@ const articles = [
     teamIds: [3, 5, 6],
   },
 ];
-
 // Articles sorted newest-first by date. Used across the site.
 const articlesByDate = [...articles].sort((a, b) => new Date(b.date) - new Date(a.date));
 
@@ -158,15 +157,18 @@ async function fetchPastSeason(leagueId) {
     };
   }).sort((a, b) => b.wins - a.wins || b.pointsFor - a.pointsFor);
 
-  // Champion: winner of the first matchup in the winners bracket's final round
+  // Champion + full bracket. The bracket is an array of matchup objects:
+  //   { r: round, m: match#, t1: rosterId, t2: rosterId, w: winner, l: loser, ... }
+  // t1/t2 can also be { w: matchId } or { l: matchId } meaning "winner/loser of match X".
   let champion = null;
+  let bracket = [];
   try {
     const bracketRes = await fetch(`${SLEEPER_API}/league/${leagueId}/winners_bracket`);
-    const bracket = await bracketRes.json();
-    if (Array.isArray(bracket) && bracket.length) {
-      // The final is the matchup with the highest round number
-      const finalRound = Math.max(...bracket.map(m => m.r || 0));
-      const finalMatch = bracket.find(m => m.r === finalRound && m.w != null);
+    const raw = await bracketRes.json();
+    if (Array.isArray(raw) && raw.length) {
+      bracket = raw;
+      const finalRound = Math.max(...raw.map(m => m.r || 0));
+      const finalMatch = raw.find(m => m.r === finalRound && m.w != null);
       if (finalMatch) champion = standings.find(t => t.rosterId === finalMatch.w) || null;
     }
   } catch {
@@ -196,6 +198,7 @@ async function fetchPastSeason(leagueId) {
     previousLeagueId: league.previous_league_id || null,
     standings,
     champion,
+    bracket,
     matchupsByWeek,
   };
 }
@@ -1325,6 +1328,97 @@ function HistoryPage({ data, setPage, setActiveTeam }) {
   );
 }
 
+// Visual playoff bracket. Sleeper's bracket is a flat array of matchups;
+// each has r (round), m (match #), t1/t2 (roster IDs or {w/l: matchId} refs),
+// and w/l (winner/loser roster IDs once decided).
+function PlayoffBracket({ bracket, standings }) {
+  if (!bracket || bracket.length === 0) {
+    return (
+      <p className="text-sm text-gray-500">No playoff bracket data available for this season.</p>
+    );
+  }
+
+  const teamByRoster = {};
+  standings.forEach(t => { teamByRoster[t.rosterId] = t; });
+
+  // Group matchups by round
+  const rounds = {};
+  bracket.forEach(m => {
+    if (!rounds[m.r]) rounds[m.r] = [];
+    rounds[m.r].push(m);
+  });
+  const roundNumbers = Object.keys(rounds).map(Number).sort((a, b) => a - b);
+  roundNumbers.forEach(r => rounds[r].sort((a, b) => (a.m || 0) - (b.m || 0)));
+
+  const roundLabel = (r, total) => {
+    const fromEnd = total - r;
+    if (fromEnd === 0) return 'Final';
+    if (fromEnd === 1) return 'Semifinals';
+    if (fromEnd === 2) return 'Quarterfinals';
+    return `Round ${r}`;
+  };
+
+  // Resolve a t1/t2 slot into a team (or a placeholder label)
+  const resolveSlot = (slot) => {
+    if (slot == null) return null;
+    if (typeof slot === 'number') return teamByRoster[slot] || null;
+    // Object form: { w: matchId } or { l: matchId }
+    if (typeof slot === 'object') {
+      if (slot.w != null) return { placeholder: `Winner of Match ${slot.w}` };
+      if (slot.l != null) return { placeholder: `Loser of Match ${slot.l}` };
+    }
+    return null;
+  };
+
+  return (
+    <div className="flex gap-6 overflow-x-auto pb-2">
+      {roundNumbers.map(r => (
+        <div key={r} className="flex flex-col gap-4 min-w-[200px]">
+          <div className="text-xs font-black text-gray-500 uppercase tracking-widest text-center">
+            {roundLabel(r, roundNumbers.length)}
+          </div>
+          <div className="flex flex-col gap-4 justify-around flex-1">
+            {rounds[r].map((m, i) => {
+              const t1 = resolveSlot(m.t1);
+              const t2 = resolveSlot(m.t2);
+              return (
+                <div key={i} className="bg-white rounded-lg border border-gray-200 overflow-hidden">
+                  <BracketSlot team={t1} isWinner={m.w != null && m.w === t1?.rosterId} />
+                  <div className="border-t border-gray-100" />
+                  <BracketSlot team={t2} isWinner={m.w != null && m.w === t2?.rosterId} />
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function BracketSlot({ team, isWinner }) {
+  if (!team) {
+    return <div className="px-3 py-2.5 text-sm text-gray-300 italic">TBD</div>;
+  }
+  if (team.placeholder) {
+    return <div className="px-3 py-2.5 text-xs text-gray-400 italic">{team.placeholder}</div>;
+  }
+  return (
+    <div className={`flex items-center gap-2 px-3 py-2.5 ${isWinner ? 'bg-blue-50' : ''}`}>
+      <span
+        className="w-6 h-6 flex items-center justify-center font-black text-white text-[10px] rounded shrink-0"
+        style={{ backgroundColor: team.primary }}
+      >
+        {team.abbrev}
+      </span>
+      <span className={`text-sm truncate flex-1 ${isWinner ? 'font-black text-gray-900' : 'font-semibold text-gray-600'}`}>
+        {team.name}
+      </span>
+      {isWinner && <span className="text-blue-700 text-xs font-black">✓</span>}
+    </div>
+  );
+}
+
 function SeasonHistoryCard({ season, isOpen, onToggle }) {
   const [week, setWeek] = useState(null);
   const weekNumbers = Object.keys(season.matchupsByWeek || {}).map(Number).sort((a, b) => a - b);
@@ -1378,33 +1472,44 @@ function SeasonHistoryCard({ season, isOpen, onToggle }) {
         </div>
       ))}
 
-      {/* Expandable: matchups by week */}
-      {isOpen && weekNumbers.length > 0 && (
-        <div className="p-6 bg-gray-50 border-t border-gray-200">
-          <h3 className="text-sm font-black text-gray-500 uppercase tracking-widest mb-3">Matchups</h3>
-          <div className="flex gap-2 mb-4 overflow-x-auto pb-2">
-            {weekNumbers.map(w => (
-              <button key={w} onClick={() => setWeek(w)}
-                className={`px-3 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap transition-colors ${
-                  w === activeWeek ? 'bg-blue-700 text-white' : 'bg-white text-gray-700 hover:bg-gray-100 border border-gray-200'
-                }`}>
-                Week {w}
-              </button>
-            ))}
+      {/* Expandable: playoff bracket + matchups by week */}
+      {isOpen && (
+        <div className="p-6 bg-gray-50 border-t border-gray-200 space-y-6">
+          {/* Playoff bracket */}
+          <div>
+            <h3 className="text-sm font-black text-gray-500 uppercase tracking-widest mb-3">Playoff Bracket</h3>
+            <PlayoffBracket bracket={season.bracket} standings={season.standings} />
           </div>
-          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
-            {weekMatchups.map((m, i) => {
-              if (!m.teamA || !m.teamB) return null;
-              const aWon = m.scoreA > m.scoreB;
-              const bWon = m.scoreB > m.scoreA;
-              return (
-                <div key={i} className="bg-white rounded-lg border border-gray-200 p-3">
-                  <MatchupColumnRow team={m.teamA} score={m.scoreA} won={aWon} />
-                  <MatchupColumnRow team={m.teamB} score={m.scoreB} won={bWon} />
-                </div>
-              );
-            })}
-          </div>
+
+          {/* Matchups by week */}
+          {weekNumbers.length > 0 && (
+            <div>
+              <h3 className="text-sm font-black text-gray-500 uppercase tracking-widest mb-3">Matchups</h3>
+              <div className="flex gap-2 mb-4 overflow-x-auto pb-2">
+                {weekNumbers.map(w => (
+                  <button key={w} onClick={() => setWeek(w)}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap transition-colors ${
+                      w === activeWeek ? 'bg-blue-700 text-white' : 'bg-white text-gray-700 hover:bg-gray-100 border border-gray-200'
+                    }`}>
+                    Week {w}
+                  </button>
+                ))}
+              </div>
+              <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                {weekMatchups.map((m, i) => {
+                  if (!m.teamA || !m.teamB) return null;
+                  const aWon = m.scoreA > m.scoreB;
+                  const bWon = m.scoreB > m.scoreA;
+                  return (
+                    <div key={i} className="bg-white rounded-lg border border-gray-200 p-3">
+                      <MatchupColumnRow team={m.teamA} score={m.scoreA} won={aWon} />
+                      <MatchupColumnRow team={m.teamB} score={m.scoreB} won={bWon} />
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
         </div>
       )}
     </div>
