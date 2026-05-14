@@ -127,9 +127,82 @@ const FALLBACK_DATA = {
   currentWeek: 4,
 };
 
+// Fetch one complete past season given its league_id.
+// Returns standings, champion, matchups, and the previous_league_id (to chain further back).
+async function fetchPastSeason(leagueId) {
+  const [leagueRes, usersRes, rostersRes] = await Promise.all([
+    fetch(`${SLEEPER_API}/league/${leagueId}`),
+    fetch(`${SLEEPER_API}/league/${leagueId}/users`),
+    fetch(`${SLEEPER_API}/league/${leagueId}/rosters`),
+  ]);
+  const [league, users, rosters] = await Promise.all([
+    leagueRes.json(), usersRes.json(), rostersRes.json()
+  ]);
+
+  // Build standings (same shape as current-season teams)
+  const standings = rosters.map((roster, i) => {
+    const owner = users.find(u => u.user_id === roster.owner_id);
+    const teamName = owner?.metadata?.team_name || owner?.display_name || `Team ${roster.roster_id}`;
+    return {
+      id: String(roster.roster_id),
+      rosterId: roster.roster_id,
+      name: teamName,
+      owner: owner?.display_name || 'Unknown',
+      wins: roster.settings?.wins || 0,
+      losses: roster.settings?.losses || 0,
+      ties: roster.settings?.ties || 0,
+      pointsFor: (roster.settings?.fpts || 0) + (roster.settings?.fpts_decimal || 0) / 100,
+      pointsAgainst: (roster.settings?.fpts_against || 0) + (roster.settings?.fpts_against_decimal || 0) / 100,
+      primary: TEAM_COLORS[i % TEAM_COLORS.length],
+      abbrev: makeAbbrev(teamName),
+    };
+  }).sort((a, b) => b.wins - a.wins || b.pointsFor - a.pointsFor);
+
+  // Champion: winner of the first matchup in the winners bracket's final round
+  let champion = null;
+  try {
+    const bracketRes = await fetch(`${SLEEPER_API}/league/${leagueId}/winners_bracket`);
+    const bracket = await bracketRes.json();
+    if (Array.isArray(bracket) && bracket.length) {
+      // The final is the matchup with the highest round number
+      const finalRound = Math.max(...bracket.map(m => m.r || 0));
+      const finalMatch = bracket.find(m => m.r === finalRound && m.w != null);
+      if (finalMatch) champion = standings.find(t => t.rosterId === finalMatch.w) || null;
+    }
+  } catch {
+    // bracket may not exist; champion stays null
+  }
+
+  // Past-season matchups — playoffs typically run through ~17 weeks
+  const weeks = Array.from({ length: 18 }, (_, i) => i + 1);
+  const matchupResults = await Promise.all(
+    weeks.map(w =>
+      fetch(`${SLEEPER_API}/league/${leagueId}/matchups/${w}`)
+        .then(r => r.json())
+        .catch(() => [])
+    )
+  );
+  const matchupsByWeek = {};
+  weeks.forEach((w, i) => {
+    if (Array.isArray(matchupResults[i]) && matchupResults[i].length) {
+      matchupsByWeek[w] = matchupResults[i];
+    }
+  });
+
+  return {
+    leagueId,
+    season: league.season,
+    name: league.name,
+    previousLeagueId: league.previous_league_id || null,
+    standings,
+    champion,
+    matchupsByWeek,
+  };
+}
+
 // ============ LIVE DATA HOOK ============
 function useLeagueData() {
-  const [data, setData] = useState({ loading: true, error: null, usingFallback: false, league: null, teams: [], players: {}, currentWeek: 1, season: String(new Date().getFullYear()), matchupsByWeek: {}, transactions: [] });
+  const [data, setData] = useState({ loading: true, error: null, usingFallback: false, league: null, teams: [], players: {}, currentWeek: 1, season: String(new Date().getFullYear()), matchupsByWeek: {}, transactions: [], history: [] });
 
   useEffect(() => {
     let cancelled = false;
@@ -192,8 +265,25 @@ function useLeagueData() {
         const playersRes = await fetch(`${SLEEPER_API}/players/nfl`);
         const players = await playersRes.json();
 
+        // Walk the previous_league_id chain to collect past seasons.
+        // Capped at 10 to avoid runaway loops on very old leagues.
+        const history = [];
+        let prevId = league.previous_league_id;
+        let guard = 0;
+        while (prevId && guard < 10) {
+          try {
+            const past = await fetchPastSeason(prevId);
+            history.push(past);
+            prevId = past.previousLeagueId;
+          } catch (e) {
+            console.warn('Could not load past season:', e.message);
+            break;
+          }
+          guard++;
+        }
+
         if (cancelled) return;
-        setData({ loading: false, error: null, usingFallback: false, league, teams, players, currentWeek, season, matchupsByWeek, transactions });
+        setData({ loading: false, error: null, usingFallback: false, league, teams, players, currentWeek, season, matchupsByWeek, transactions, history });
       } catch (err) {
         // Sleeper API unreachable (e.g. inside an artifact preview sandbox).
         // Fall back to demo data so the design is still viewable.
@@ -210,6 +300,7 @@ function useLeagueData() {
           season: String(new Date().getFullYear()),
           matchupsByWeek: FALLBACK_DATA.matchupsByWeek,
           transactions: [],
+          history: [],
         });
       }
     }
@@ -244,7 +335,7 @@ function pairMatchups(weekMatchups, teams) {
 // ============ NAVBAR ============
 function Navbar({ currentPage, setPage }) {
   const [menuOpen, setMenuOpen] = useState(false);
-  const links = ['Home', 'Matchups', 'News', 'Teams', 'Players', 'Standings', 'Transactions'];
+  const links = ['Home', 'Matchups', 'News', 'Teams', 'Players', 'Standings', 'Transactions', 'History'];
 
   return (
     <nav className="bg-white border-b border-gray-200 sticky top-0 z-50 shadow-sm">
@@ -607,11 +698,15 @@ function TeamsPage({ data, setPage, setActiveTeam }) {
 // ============ TEAM HUB ============
 function TeamHubPage({ teamId, data, setPage, openPlayer }) {
   const [tab, setTab] = useState('Overview');
-  const { teams, players, matchupsByWeek, currentWeek } = data;
+  const { teams, players, matchupsByWeek, currentWeek, history } = data;
   const team = teams.find(t => t.id === teamId);
   if (!team) return null;
 
-  const tabs = ['Overview', 'Roster', 'Schedule'];
+  // Only show the History tab if the league actually has past seasons
+  const hasHistory = history && history.length > 0;
+  const tabs = hasHistory
+    ? ['Overview', 'Roster', 'Schedule', 'History']
+    : ['Overview', 'Roster', 'Schedule'];
 
   return (
     <div className="bg-gray-50 min-h-screen">
@@ -649,6 +744,59 @@ function TeamHubPage({ teamId, data, setPage, openPlayer }) {
         {tab === 'Overview' && <TeamOverview team={team} teams={teams} matchupsByWeek={matchupsByWeek} currentWeek={currentWeek} />}
         {tab === 'Roster' && <TeamRoster team={team} players={players} openPlayer={openPlayer} />}
         {tab === 'Schedule' && <TeamSchedule team={team} teams={teams} matchupsByWeek={matchupsByWeek} currentWeek={currentWeek} />}
+        {tab === 'History' && <TeamHistory team={team} history={history} />}
+      </div>
+    </div>
+  );
+}
+
+// Past-season records for one manager (matched by owner name across seasons)
+function TeamHistory({ team, history }) {
+  const pastRecords = history.map(season => {
+    // Roster IDs can shift between seasons, so match by owner display name
+    const past = season.standings.find(s => s.owner === team.owner);
+    if (!past) return null;
+    const rank = season.standings.findIndex(s => s.owner === team.owner) + 1;
+    const wasChampion = season.champion?.owner === team.owner;
+    return { season: season.season, past, rank, wasChampion };
+  }).filter(Boolean);
+
+  if (pastRecords.length === 0) {
+    return (
+      <div className="bg-white rounded-xl border border-gray-200 p-8 text-center text-gray-500">
+        No past-season records found for this manager.
+      </div>
+    );
+  }
+
+  return (
+    <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+      <div className="px-6 py-4 border-b border-gray-200">
+        <h2 className="text-xl font-display font-black text-gray-900 uppercase tracking-tight">Past Seasons</h2>
+      </div>
+      <div className="divide-y divide-gray-100">
+        {pastRecords.map(r => (
+          <div key={r.season} className="flex items-center gap-4 px-6 py-4">
+            <div className="text-center w-16">
+              <div className="text-2xl font-display font-black text-gray-900">{r.season}</div>
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="font-bold text-gray-900 flex items-center gap-2">
+                {r.past.name}
+                {r.wasChampion && (
+                  <span className="text-xs font-black text-amber-600">🏆 CHAMPION</span>
+                )}
+              </div>
+              <div className="text-sm text-gray-500">
+                {r.past.wins}-{r.past.losses}{r.past.ties ? `-${r.past.ties}` : ''} · {r.past.pointsFor.toFixed(1)} PF
+              </div>
+            </div>
+            <div className="text-right">
+              <div className="text-xs font-bold text-gray-400 uppercase tracking-widest">Finish</div>
+              <div className="text-xl font-display font-black text-gray-900">#{r.rank}</div>
+            </div>
+          </div>
+        ))}
       </div>
     </div>
   );
@@ -1138,6 +1286,131 @@ function ArticlePage({ articleId, data, setPage, setActiveTeam }) {
 }
 
 // ============ PLAYER PAGE ============
+// ============ HISTORY PAGE ============
+function HistoryPage({ data, setPage, setActiveTeam }) {
+  const { history } = data;
+  const [openSeason, setOpenSeason] = useState(null); // leagueId of expanded season
+
+  if (!history || history.length === 0) {
+    return (
+      <div className="bg-gray-50 min-h-screen">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 py-10">
+          <h1 className="text-4xl sm:text-5xl font-display font-black text-gray-900 tracking-tight mb-2">HISTORY</h1>
+          <div className="bg-white rounded-xl border border-gray-200 p-12 text-center text-gray-500 mt-6">
+            No previous seasons found — this is the league's first season. Check back next year!
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="bg-gray-50 min-h-screen">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 py-10">
+        <h1 className="text-4xl sm:text-5xl font-display font-black text-gray-900 tracking-tight mb-2">HISTORY</h1>
+        <p className="text-gray-600 mb-8">Past seasons, champions, and final standings.</p>
+
+        <div className="space-y-6">
+          {history.map(season => (
+            <SeasonHistoryCard
+              key={season.leagueId}
+              season={season}
+              isOpen={openSeason === season.leagueId}
+              onToggle={() => setOpenSeason(openSeason === season.leagueId ? null : season.leagueId)}
+            />
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function SeasonHistoryCard({ season, isOpen, onToggle }) {
+  const [week, setWeek] = useState(null);
+  const weekNumbers = Object.keys(season.matchupsByWeek || {}).map(Number).sort((a, b) => a - b);
+  const activeWeek = week || weekNumbers[0];
+  const weekMatchups = pairMatchups(season.matchupsByWeek?.[activeWeek], season.standings);
+
+  return (
+    <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+      {/* Season header */}
+      <div className="px-6 py-5 border-b border-gray-200 flex items-center justify-between flex-wrap gap-3">
+        <div className="flex items-center gap-4">
+          <span className="text-3xl font-display font-black text-gray-900">{season.season}</span>
+          {season.champion && (
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-black text-amber-600 uppercase tracking-widest">🏆 Champion</span>
+              <div className="flex items-center gap-2">
+                <span className="w-6 h-6 flex items-center justify-center font-black text-white text-[10px] rounded" style={{ backgroundColor: season.champion.primary }}>
+                  {season.champion.abbrev}
+                </span>
+                <span className="font-bold text-gray-900">{season.champion.name}</span>
+              </div>
+            </div>
+          )}
+        </div>
+        <button onClick={onToggle} className="text-sm text-blue-700 font-bold hover:text-blue-900">
+          {isOpen ? 'Hide details ▲' : 'Show details ▼'}
+        </button>
+      </div>
+
+      {/* Final standings — always visible */}
+      <div className="grid grid-cols-12 text-xs font-bold text-gray-500 uppercase tracking-wider px-6 py-2 border-b border-gray-100 bg-gray-50">
+        <span className="col-span-1">#</span>
+        <span className="col-span-6">Team</span>
+        <span className="col-span-2 text-center">W-L</span>
+        <span className="col-span-3 text-right">Points For</span>
+      </div>
+      {season.standings.map((t, i) => (
+        <div key={t.id} className="grid grid-cols-12 items-center px-6 py-2.5 border-b border-gray-100 last:border-0">
+          <span className="col-span-1 text-gray-400 font-bold text-sm">{i + 1}</span>
+          <div className="col-span-6 flex items-center gap-3 min-w-0">
+            <span className="w-6 h-6 flex items-center justify-center font-black text-white text-[10px] rounded shrink-0" style={{ backgroundColor: t.primary }}>
+              {t.abbrev}
+            </span>
+            <div className="min-w-0">
+              <div className="font-bold text-gray-900 truncate">{t.name}</div>
+              <div className="text-xs text-gray-500 truncate">{t.owner}</div>
+            </div>
+          </div>
+          <span className="col-span-2 text-center text-gray-900 font-bold">{t.wins}-{t.losses}{t.ties ? `-${t.ties}` : ''}</span>
+          <span className="col-span-3 text-right text-gray-700 font-semibold">{t.pointsFor.toFixed(1)}</span>
+        </div>
+      ))}
+
+      {/* Expandable: matchups by week */}
+      {isOpen && weekNumbers.length > 0 && (
+        <div className="p-6 bg-gray-50 border-t border-gray-200">
+          <h3 className="text-sm font-black text-gray-500 uppercase tracking-widest mb-3">Matchups</h3>
+          <div className="flex gap-2 mb-4 overflow-x-auto pb-2">
+            {weekNumbers.map(w => (
+              <button key={w} onClick={() => setWeek(w)}
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap transition-colors ${
+                  w === activeWeek ? 'bg-blue-700 text-white' : 'bg-white text-gray-700 hover:bg-gray-100 border border-gray-200'
+                }`}>
+                Week {w}
+              </button>
+            ))}
+          </div>
+          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
+            {weekMatchups.map((m, i) => {
+              if (!m.teamA || !m.teamB) return null;
+              const aWon = m.scoreA > m.scoreB;
+              const bWon = m.scoreB > m.scoreA;
+              return (
+                <div key={i} className="bg-white rounded-lg border border-gray-200 p-3">
+                  <MatchupColumnRow team={m.teamA} score={m.scoreA} won={aWon} />
+                  <MatchupColumnRow team={m.teamB} score={m.scoreB} won={bWon} />
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ============ PLAYERS PAGE (searchable database) ============
 function PlayersPage({ data, openPlayer }) {
   const { players, teams } = data;
@@ -1525,6 +1798,7 @@ export default function App() {
            {page === 'Transactions' && <TransactionsPage data={data} setPage={setPage} setActiveTeam={setActiveTeam} openPlayer={openPlayer} />}
            {page === 'Teams' && <TeamsPage data={data} setPage={setPage} setActiveTeam={setActiveTeam} />}
            {page === 'Players' && <PlayersPage data={data} openPlayer={openPlayer} />}
+           {page === 'History' && <HistoryPage data={data} setPage={setPage} setActiveTeam={setActiveTeam} />}
            {page === 'TeamHub' && <TeamHubPage teamId={activeTeam} data={data} setPage={setPage} openPlayer={openPlayer} />}
            {page === 'News' && <NewsPage openArticle={openArticle} />}
            {page === 'Article' && <ArticlePage articleId={activeArticle} data={data} setPage={setPage} setActiveTeam={setActiveTeam} />}
