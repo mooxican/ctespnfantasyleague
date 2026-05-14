@@ -12,15 +12,49 @@ const TEAM_COLORS = [
   '#DB2777', '#65A30D', '#9333EA', '#0E7490',
 ];
 
-// Static editorial headlines (Sleeper API doesn't provide news)
-const headlines = [
-  { id: 1, category: 'BREAKING', title: "Standings shake up after a wild Week 14", excerpt: 'A wild week of fantasy action reshuffles the playoff picture as the season nears its end.' },
-  { id: 2, category: 'WAIVERS', title: "Top waiver wire pickups heading into the playoffs" },
-  { id: 3, category: 'POWER RANKINGS', title: "Weekly power rankings: Who's the team to beat?" },
-  { id: 4, category: 'TRADE', title: "Trade deadline recap: The moves that could swing the title" },
-  { id: 5, category: 'MATCHUP', title: "Matchups to watch this week across the league" },
-  { id: 6, category: 'INJURY', title: "Injury report: Who's in, who's out for the championship push" },
-  { id: 7, category: 'ANALYSIS', title: "Breakout players who carried fantasy rosters this season" },
+// ============================================================
+//  NEWS ARTICLES — EDIT THIS to add/change your own articles
+// ------------------------------------------------------------
+//  Each article has:
+//    id       — any unique number
+//    category — short label shown above the title (e.g. 'TRADE')
+//    title    — the headline
+//    excerpt  — 1-2 sentence summary shown on cards
+//    image    — a URL to an image (paste any image link)
+//    body     — the full article text. Use \n\n between paragraphs.
+//    teamIds  — array of league team roster IDs this article is about.
+//               These become buttons that jump to the team's page.
+//               Find a team's id: it's the roster_id, shown as
+//               "Roster ID #X" on each team's Overview tab. Use [] for none.
+// ============================================================
+const articles = [
+  {
+    id: 1,
+    category: 'BREAKING',
+    title: "Standings shake up after a wild Week 14",
+    excerpt: 'A wild week of fantasy action reshuffles the playoff picture as the season nears its end.',
+    image: 'https://images.unsplash.com/photo-1566577739112-5180d4bf9390?w=1200&q=80',
+    body: "Week 14 delivered chaos across the league.\n\nSeveral playoff contenders stumbled while teams on the bubble surged at exactly the right time. The result is one of the tightest postseason races we've seen in years.\n\nWith just a few weeks left in the regular season, every matchup now carries serious weight. Replace this text with your own article body — use a blank line between paragraphs to start a new one.",
+    teamIds: [],
+  },
+  {
+    id: 2,
+    category: 'WAIVERS',
+    title: "Top waiver wire pickups heading into the playoffs",
+    excerpt: 'The under-the-radar players who could swing a championship run.',
+    image: 'https://images.unsplash.com/photo-1508098682722-e99c43a406b2?w=1200&q=80',
+    body: "The waiver wire is where championships are won.\n\nThis is placeholder body text — replace it with your real analysis. Link this article to specific teams by adding their roster IDs to the teamIds array above.",
+    teamIds: [],
+  },
+  {
+    id: 3,
+    category: 'POWER RANKINGS',
+    title: "Weekly power rankings: Who's the team to beat?",
+    excerpt: 'Our subjective, occasionally controversial ranking of all teams in the league.',
+    image: 'https://images.unsplash.com/photo-1495465798138-718f86d1a4bc?w=1200&q=80',
+    body: "Power rankings are back.\n\nReplace this with your weekly rankings writeup. You can reference multiple teams and add all of them to the teamIds array to create jump buttons for each.",
+    teamIds: [],
+  },
 ];
 
 // ============ HELPERS ============
@@ -306,11 +340,11 @@ function ErrorScreen({ error }) {
 }
 
 // ============ HOME PAGE ============
-function HomePage({ setPage, data }) {
+function HomePage({ setPage, data, openArticle }) {
   const { teams, currentWeek, matchupsByWeek } = data;
   const currentMatchups = pairMatchups(matchupsByWeek[currentWeek], teams);
-  const featured = headlines[0];
-  const newsList = headlines.slice(1);
+  const featured = articles[0];
+  const newsList = articles.slice(1);
   const topTwo = teams.slice(0, 2);
 
   return (
@@ -346,11 +380,11 @@ function HomePage({ setPage, data }) {
                 </div>
               )}
             </div>
-            <div className="p-6">
+            <button onClick={() => openArticle(featured.id)} className="p-6 text-left w-full hover:bg-gray-50 transition-colors">
               <span className="inline-block px-2 py-0.5 bg-blue-700 text-white text-xs font-black tracking-widest rounded">{featured.category}</span>
               <h1 className="text-2xl sm:text-3xl font-display font-black text-gray-900 leading-tight tracking-tight mt-3 mb-2">{featured.title}</h1>
               <p className="text-gray-600 font-body text-lg leading-relaxed">{featured.excerpt}</p>
-            </div>
+            </button>
           </div>
 
           <div className="bg-white rounded-xl border border-gray-200 shadow-sm">
@@ -359,12 +393,12 @@ function HomePage({ setPage, data }) {
             </div>
             <div className="divide-y divide-gray-100">
               {newsList.slice(0, 6).map(story => (
-                <article key={story.id} className="px-5 py-3 hover:bg-gray-50 cursor-pointer flex gap-3 items-start">
+                <button key={story.id} onClick={() => openArticle(story.id)} className="w-full text-left px-5 py-3 hover:bg-gray-50 cursor-pointer flex gap-3 items-start">
                   <svg className="w-4 h-4 text-gray-400 mt-1 shrink-0" fill="currentColor" viewBox="0 0 20 20">
                     <path fillRule="evenodd" d="M4 4a2 2 0 012-2h8a2 2 0 012 2v12a2 2 0 01-2 2H6a2 2 0 01-2-2V4zm3 1h6v2H7V5zm0 4h6v2H7V9zm0 4h4v2H7v-2z" clipRule="evenodd" />
                   </svg>
                   <h3 className="text-sm font-bold text-gray-900 leading-snug hover:text-blue-700">{story.title}</h3>
-                </article>
+                </button>
               ))}
             </div>
           </div>
@@ -384,15 +418,21 @@ function HomePage({ setPage, data }) {
           <h2 className="text-2xl font-display font-black text-gray-900 uppercase tracking-tight mb-4">Latest Stories</h2>
           <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
             {newsList.slice(0, 6).map(story => (
-              <article key={story.id} className="bg-white rounded-xl border border-gray-200 overflow-hidden hover:shadow-md hover:border-blue-700 transition-all cursor-pointer">
-                <div className="h-40 bg-gradient-to-br from-blue-700 to-blue-900 flex items-center justify-center">
-                  <span className="text-white/30 text-6xl font-display font-black tracking-tighter">FFL</span>
+              <button key={story.id} onClick={() => openArticle(story.id)} className="bg-white rounded-xl border border-gray-200 overflow-hidden hover:shadow-md hover:border-blue-700 transition-all cursor-pointer text-left">
+                <div className="h-40 bg-gray-100 overflow-hidden">
+                  {story.image ? (
+                    <img src={story.image} alt={story.title} className="w-full h-full object-cover" />
+                  ) : (
+                    <div className="w-full h-full bg-gradient-to-br from-blue-700 to-blue-900 flex items-center justify-center">
+                      <span className="text-white/30 text-6xl font-display font-black tracking-tighter">FFL</span>
+                    </div>
+                  )}
                 </div>
                 <div className="p-5">
                   <span className="text-xs font-black text-blue-700 tracking-widest">{story.category}</span>
                   <h3 className="text-lg font-bold text-gray-900 mt-2 leading-snug">{story.title}</h3>
                 </div>
-              </article>
+              </button>
             ))}
           </div>
         </div>
@@ -754,25 +794,96 @@ function TeamSchedule({ team, teams, matchupsByWeek, currentWeek }) {
 }
 
 // ============ NEWS PAGE ============
-function NewsPage() {
+function NewsPage({ openArticle }) {
   return (
     <div className="bg-gray-50 min-h-screen">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 py-10">
         <h1 className="text-4xl sm:text-5xl font-display font-black text-gray-900 tracking-tight mb-2">NEWS</h1>
         <p className="text-gray-600 mb-8">League news and analysis.</p>
         <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
-          {headlines.map(story => (
-            <article key={story.id} className="bg-white rounded-xl border border-gray-200 overflow-hidden hover:shadow-md hover:border-blue-700 transition-all cursor-pointer">
-              <div className="h-40 bg-gradient-to-br from-blue-700 to-blue-900 flex items-center justify-center">
-                <span className="text-white/30 text-6xl font-display font-black tracking-tighter">FFL</span>
+          {articles.map(story => (
+            <button key={story.id} onClick={() => openArticle(story.id)} className="bg-white rounded-xl border border-gray-200 overflow-hidden hover:shadow-md hover:border-blue-700 transition-all cursor-pointer text-left">
+              <div className="h-40 bg-gray-100 overflow-hidden">
+                {story.image ? (
+                  <img src={story.image} alt={story.title} className="w-full h-full object-cover" />
+                ) : (
+                  <div className="w-full h-full bg-gradient-to-br from-blue-700 to-blue-900 flex items-center justify-center">
+                    <span className="text-white/30 text-6xl font-display font-black tracking-tighter">FFL</span>
+                  </div>
+                )}
               </div>
               <div className="p-5">
                 <span className="text-xs font-black text-blue-700 tracking-widest">{story.category}</span>
                 <h3 className="text-lg font-bold text-gray-900 mt-2 leading-snug">{story.title}</h3>
+                <p className="text-gray-600 font-body mt-2 leading-relaxed">{story.excerpt}</p>
               </div>
-            </article>
+            </button>
           ))}
         </div>
+      </div>
+    </div>
+  );
+}
+
+// ============ ARTICLE PAGE (full reading view) ============
+function ArticlePage({ articleId, data, setPage, setActiveTeam }) {
+  const article = articles.find(a => a.id === articleId);
+  if (!article) return null;
+
+  // Resolve linked teams from their roster IDs
+  const linkedTeams = (article.teamIds || [])
+    .map(id => data.teams.find(t => String(t.id) === String(id)))
+    .filter(Boolean);
+
+  const paragraphs = (article.body || '').split('\n\n').filter(Boolean);
+
+  return (
+    <div className="bg-gray-50 min-h-screen">
+      <div className="max-w-3xl mx-auto px-4 sm:px-6 py-10">
+        <button onClick={() => setPage('News')} className="text-blue-700 hover:text-blue-900 text-sm font-bold mb-6">
+          ← Back to News
+        </button>
+
+        <span className="inline-block px-2 py-0.5 bg-blue-700 text-white text-xs font-black tracking-widest rounded">
+          {article.category}
+        </span>
+        <h1 className="text-3xl sm:text-5xl font-display font-black text-gray-900 tracking-tight leading-tight mt-4 mb-4">
+          {article.title}
+        </h1>
+        <p className="text-xl text-gray-600 font-body leading-relaxed mb-6">{article.excerpt}</p>
+
+        {article.image && (
+          <img src={article.image} alt={article.title} className="w-full rounded-xl mb-8 object-cover" />
+        )}
+
+        <div className="space-y-5 mb-10">
+          {paragraphs.map((para, i) => (
+            <p key={i} className="text-lg text-gray-800 font-body leading-relaxed">{para}</p>
+          ))}
+        </div>
+
+        {/* Linked team buttons */}
+        {linkedTeams.length > 0 && (
+          <div className="border-t border-gray-200 pt-6">
+            <h3 className="text-sm font-black text-gray-500 uppercase tracking-widest mb-3">Teams in this story</h3>
+            <div className="flex flex-wrap gap-3">
+              {linkedTeams.map(team => (
+                <button
+                  key={team.id}
+                  onClick={() => { setActiveTeam(team.id); setPage('TeamHub'); }}
+                  className="flex items-center gap-3 pl-2 pr-4 py-2 rounded-lg text-white font-bold hover:opacity-90 transition-opacity"
+                  style={{ backgroundColor: team.primary }}
+                >
+                  <span className="w-8 h-8 flex items-center justify-center bg-white/15 rounded font-black text-sm">
+                    {team.abbrev}
+                  </span>
+                  <span>{team.name}</span>
+                  <span className="text-white/70">→</span>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -782,7 +893,15 @@ function NewsPage() {
 export default function App() {
   const [page, setPage] = useState('Home');
   const [activeTeam, setActiveTeam] = useState(null);
+  const [activeArticle, setActiveArticle] = useState(null);
   const data = useLeagueData();
+
+  // Open an article in the full reading view
+  const openArticle = (id) => {
+    setActiveArticle(id);
+    setPage('Article');
+    window.scrollTo(0, 0);
+  };
 
   return (
     <>
@@ -803,12 +922,13 @@ export default function App() {
         {data.loading ? <LoadingScreen /> :
          data.error ? <ErrorScreen error={data.error} /> :
          <>
-           {page === 'Home' && <HomePage setPage={setPage} data={data} />}
+           {page === 'Home' && <HomePage setPage={setPage} data={data} openArticle={openArticle} />}
            {page === 'Matchups' && <MatchupsPage data={data} />}
            {page === 'Standings' && <StandingsPage data={data} />}
            {page === 'Teams' && <TeamsPage data={data} setPage={setPage} setActiveTeam={setActiveTeam} />}
            {page === 'TeamHub' && <TeamHubPage teamId={activeTeam} data={data} setPage={setPage} />}
-           {page === 'News' && <NewsPage />}
+           {page === 'News' && <NewsPage openArticle={openArticle} />}
+           {page === 'Article' && <ArticlePage articleId={activeArticle} data={data} setPage={setPage} setActiveTeam={setActiveTeam} />}
          </>}
         <footer className="bg-blue-950 text-white py-10 mt-12">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 flex flex-col sm:flex-row justify-between items-center gap-4">
