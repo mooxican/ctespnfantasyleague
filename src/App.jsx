@@ -3,6 +3,7 @@ import { useState, useEffect } from 'react';
 // ============ SLEEPER LEAGUE CONFIG ============
 const LEAGUE_ID = '1312004917103185920';
 const SLEEPER_API = 'https://api.sleeper.app/v1';
+const SLEEPER_STATS_API = 'https://api.sleeper.com'; // stats live on a different host
 const SLEEPER_CDN = 'https://sleepercdn.com';
 
 // Distinct color per manager (cycles by roster_id)
@@ -135,7 +136,7 @@ const FALLBACK_DATA = {
 
 // ============ LIVE DATA HOOK ============
 function useLeagueData() {
-  const [data, setData] = useState({ loading: true, error: null, usingFallback: false, league: null, teams: [], players: {}, currentWeek: 1, matchupsByWeek: {}, transactions: [] });
+  const [data, setData] = useState({ loading: true, error: null, usingFallback: false, league: null, teams: [], players: {}, currentWeek: 1, season: String(new Date().getFullYear()), matchupsByWeek: {}, transactions: [] });
 
   useEffect(() => {
     let cancelled = false;
@@ -153,6 +154,7 @@ function useLeagueData() {
         ]);
 
         const currentWeek = Math.max(1, Math.min(nflState.week || 1, 18));
+        const season = nflState.season || String(new Date().getFullYear());
 
         const teams = rosters.map((roster, i) => {
           const owner = users.find(u => u.user_id === roster.owner_id);
@@ -198,7 +200,7 @@ function useLeagueData() {
         const players = await playersRes.json();
 
         if (cancelled) return;
-        setData({ loading: false, error: null, usingFallback: false, league, teams, players, currentWeek, matchupsByWeek, transactions });
+        setData({ loading: false, error: null, usingFallback: false, league, teams, players, currentWeek, season, matchupsByWeek, transactions });
       } catch (err) {
         // Sleeper API unreachable (e.g. inside an artifact preview sandbox).
         // Fall back to demo data so the design is still viewable.
@@ -212,6 +214,7 @@ function useLeagueData() {
           teams: FALLBACK_DATA.teams,
           players: FALLBACK_DATA.players,
           currentWeek: FALLBACK_DATA.currentWeek,
+          season: String(new Date().getFullYear()),
           matchupsByWeek: FALLBACK_DATA.matchupsByWeek,
           transactions: [],
         });
@@ -248,7 +251,7 @@ function pairMatchups(weekMatchups, teams) {
 // ============ NAVBAR ============
 function Navbar({ currentPage, setPage }) {
   const [menuOpen, setMenuOpen] = useState(false);
-  const links = ['Home', 'Matchups', 'News', 'Teams', 'Standings', 'Transactions'];
+  const links = ['Home', 'Matchups', 'News', 'Teams', 'Players', 'Standings', 'Transactions'];
 
   return (
     <nav className="bg-white border-b border-gray-200 sticky top-0 z-50 shadow-sm">
@@ -586,7 +589,7 @@ function TeamsPage({ data, setPage, setActiveTeam }) {
 }
 
 // ============ TEAM HUB ============
-function TeamHubPage({ teamId, data, setPage }) {
+function TeamHubPage({ teamId, data, setPage, openPlayer }) {
   const [tab, setTab] = useState('Overview');
   const { teams, players, matchupsByWeek, currentWeek } = data;
   const team = teams.find(t => t.id === teamId);
@@ -628,7 +631,7 @@ function TeamHubPage({ teamId, data, setPage }) {
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 py-8">
         {tab === 'Overview' && <TeamOverview team={team} teams={teams} matchupsByWeek={matchupsByWeek} currentWeek={currentWeek} />}
-        {tab === 'Roster' && <TeamRoster team={team} players={players} />}
+        {tab === 'Roster' && <TeamRoster team={team} players={players} openPlayer={openPlayer} />}
         {tab === 'Schedule' && <TeamSchedule team={team} teams={teams} matchupsByWeek={matchupsByWeek} currentWeek={currentWeek} />}
       </div>
     </div>
@@ -684,7 +687,7 @@ function BigStat({ label, value }) {
   );
 }
 
-function TeamRoster({ team, players }) {
+function TeamRoster({ team, players, openPlayer }) {
   const starters = new Set(team.starters || []);
   const rosterPlayers = (team.playerIds || []).map(pid => {
     const p = players[pid];
@@ -752,8 +755,12 @@ function TeamRoster({ team, players }) {
             <span className="col-span-1 text-right">Role</span>
           </div>
           {grouped[pos].map(p => (
-            <div key={p.id} className="grid grid-cols-12 items-center px-6 py-3 border-b border-gray-100 last:border-0 hover:bg-blue-50/50 transition-colors">
-              <span className="col-span-7 font-bold text-gray-900 truncate">{p.name}</span>
+            <button
+              key={p.id}
+              onClick={() => openPlayer(p.id)}
+              className="w-full text-left grid grid-cols-12 items-center px-6 py-3 border-b border-gray-100 last:border-0 hover:bg-blue-50/50 transition-colors"
+            >
+              <span className="col-span-7 font-bold text-gray-900 truncate hover:text-blue-700">{p.name}</span>
               <span className="col-span-2 text-gray-700 text-sm">{p.team}</span>
               <span className="col-span-2 text-gray-700">{p.age}</span>
               <span className="col-span-1 text-right">
@@ -763,7 +770,7 @@ function TeamRoster({ team, players }) {
                   <span className="text-xs text-gray-400 font-bold">BENCH</span>
                 )}
               </span>
-            </div>
+            </button>
           ))}
         </div>
       ))}
@@ -823,13 +830,21 @@ function TeamSchedule({ team, teams, matchupsByWeek, currentWeek }) {
 }
 
 // ============ TRANSACTIONS PAGE ============
-function TransactionsPage({ data }) {
+function TransactionsPage({ data, setPage, setActiveTeam, openPlayer }) {
   const { teams, players, transactions } = data;
   const [filter, setFilter] = useState('all');
 
   // Map roster_id -> team for quick lookup
   const teamByRoster = {};
   teams.forEach(t => { teamByRoster[t.rosterId] = t; });
+
+  // Navigate to a team's hub page
+  const goToTeam = (team) => {
+    if (!team) return;
+    setActiveTeam(team.id);
+    setPage('TeamHub');
+    window.scrollTo(0, 0);
+  };
 
   const playerName = (pid) => {
     const p = players[pid];
@@ -909,6 +924,8 @@ function TransactionsPage({ data }) {
                     playerName={playerName}
                     playerPos={playerPos}
                     formatDate={formatDate}
+                    goToTeam={goToTeam}
+                    openPlayer={openPlayer}
                   />
                 ))}
               </div>
@@ -920,7 +937,7 @@ function TransactionsPage({ data }) {
   );
 }
 
-function TransactionRow({ txn, teamByRoster, playerName, playerPos, formatDate }) {
+function TransactionRow({ txn, teamByRoster, playerName, playerPos, formatDate, goToTeam, openPlayer }) {
   const TYPE_STYLES = {
     trade: { label: 'TRADE', color: '#7C3AED' },
     waiver: { label: 'WAIVER', color: '#0F766E' },
@@ -944,32 +961,42 @@ function TransactionRow({ txn, teamByRoster, playerName, playerPos, formatDate }
         <span className="text-xs text-gray-400 font-semibold">{formatDate(txn.status_updated)}</span>
       </div>
 
-      {/* Teams involved */}
+      {/* Teams involved — clickable, jump to team hub */}
       <div className="flex flex-wrap gap-2 mb-3">
         {rosterIds.map(rid => {
           const team = teamByRoster[rid];
           if (!team) return null;
           return (
-            <div key={rid} className="flex items-center gap-2">
+            <button
+              key={rid}
+              onClick={() => goToTeam(team)}
+              className="flex items-center gap-2 rounded-lg px-1.5 py-1 -mx-1.5 hover:bg-gray-100 transition-colors"
+            >
               <span className="w-6 h-6 flex items-center justify-center font-black text-white text-[10px] rounded" style={{ backgroundColor: team.primary }}>
                 {team.abbrev}
               </span>
-              <span className="text-sm font-bold text-gray-900">{team.name}</span>
-            </div>
+              <span className="text-sm font-bold text-gray-900 hover:text-blue-700">{team.name}</span>
+            </button>
           );
         })}
       </div>
 
-      {/* Player movement */}
+      {/* Player movement — player names clickable to their profile */}
       <div className="space-y-1.5">
         {Object.entries(adds).map(([pid, rid]) => {
           const team = teamByRoster[rid];
           return (
             <div key={'add' + pid} className="flex items-center gap-2 text-sm">
               <span className="text-green-600 font-black">+</span>
-              <span className="font-bold text-gray-900">{playerName(pid)}</span>
+              <button onClick={() => openPlayer(pid)} className="font-bold text-gray-900 hover:text-blue-700">
+                {playerName(pid)}
+              </button>
               {playerPos(pid) && <span className="text-xs text-gray-500">{playerPos(pid)}</span>}
-              {team && <span className="text-gray-400 text-xs">→ {team.name}</span>}
+              {team && (
+                <button onClick={() => goToTeam(team)} className="text-gray-400 text-xs hover:text-blue-700">
+                  → {team.name}
+                </button>
+              )}
             </div>
           );
         })}
@@ -978,9 +1005,15 @@ function TransactionRow({ txn, teamByRoster, playerName, playerPos, formatDate }
           return (
             <div key={'drop' + pid} className="flex items-center gap-2 text-sm">
               <span className="text-red-600 font-black">−</span>
-              <span className="font-semibold text-gray-600">{playerName(pid)}</span>
+              <button onClick={() => openPlayer(pid)} className="font-semibold text-gray-600 hover:text-blue-700">
+                {playerName(pid)}
+              </button>
               {playerPos(pid) && <span className="text-xs text-gray-400">{playerPos(pid)}</span>}
-              {team && <span className="text-gray-400 text-xs">from {team.name}</span>}
+              {team && (
+                <button onClick={() => goToTeam(team)} className="text-gray-400 text-xs hover:text-blue-700">
+                  from {team.name}
+                </button>
+              )}
             </div>
           );
         })}
@@ -1088,17 +1121,366 @@ function ArticlePage({ articleId, data, setPage, setActiveTeam }) {
   );
 }
 
+// ============ PLAYER PAGE ============
+// ============ PLAYERS PAGE (searchable database) ============
+function PlayersPage({ data, openPlayer }) {
+  const { players, teams } = data;
+  const [query, setQuery] = useState('');
+  const [posFilter, setPosFilter] = useState('ALL');
+
+  // Set of player IDs rostered anywhere in the league, for the "rostered" badge
+  const rosteredIds = new Set();
+  const rosterOwner = {};
+  teams.forEach(t => {
+    (t.playerIds || []).forEach(pid => {
+      rosteredIds.add(String(pid));
+      rosterOwner[String(pid)] = t;
+    });
+  });
+
+  const positions = ['ALL', 'QB', 'RB', 'WR', 'TE', 'K', 'DEF'];
+
+  // Only search once the user has typed at least 2 characters —
+  // rendering all ~11,000 players at once would be slow.
+  const q = query.trim().toLowerCase();
+  let results = [];
+  if (q.length >= 2) {
+    results = Object.entries(players)
+      .filter(([pid, p]) => {
+        if (!p) return false;
+        const name = (p.full_name || `${p.first_name || ''} ${p.last_name || ''}`).toLowerCase();
+        if (!name.includes(q)) return false;
+        if (posFilter !== 'ALL' && p.position !== posFilter) return false;
+        return true;
+      })
+      .slice(0, 60) // cap results for performance
+      .map(([pid, p]) => ({
+        id: pid,
+        name: p.full_name || `${p.first_name || ''} ${p.last_name || ''}`.trim() || pid,
+        pos: p.position || '—',
+        team: p.team || 'FA',
+      }))
+      .sort((a, b) => {
+        // Rostered players first, then alphabetical
+        const ar = rosteredIds.has(a.id) ? 0 : 1;
+        const br = rosteredIds.has(b.id) ? 0 : 1;
+        return ar - br || a.name.localeCompare(b.name);
+      });
+  }
+
+  return (
+    <div className="bg-gray-50 min-h-screen">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 py-10">
+        <h1 className="text-4xl sm:text-5xl font-display font-black text-gray-900 tracking-tight mb-2">PLAYERS</h1>
+        <p className="text-gray-600 mb-6">Search the full NFL player database. Rostered players are marked.</p>
+
+        {/* Search box */}
+        <input
+          type="text"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          placeholder="Search players by name…"
+          className="w-full px-4 py-3 rounded-xl border border-gray-300 text-gray-900 mb-4 focus:outline-none focus:border-blue-700 focus:ring-1 focus:ring-blue-700"
+        />
+
+        {/* Position filter */}
+        <div className="flex gap-2 mb-8 flex-wrap">
+          {positions.map(pos => (
+            <button key={pos} onClick={() => setPosFilter(pos)}
+              className={`px-4 py-2 rounded-lg text-sm font-bold transition-colors ${
+                posFilter === pos ? 'bg-blue-700 text-white' : 'bg-white text-gray-700 hover:bg-gray-100 border border-gray-200'
+              }`}>
+              {pos}
+            </button>
+          ))}
+        </div>
+
+        {/* Results */}
+        {q.length < 2 ? (
+          <div className="bg-white rounded-xl border border-gray-200 p-12 text-center text-gray-500">
+            Start typing a player's name to search.
+          </div>
+        ) : results.length === 0 ? (
+          <div className="bg-white rounded-xl border border-gray-200 p-12 text-center text-gray-500">
+            No players found for "{query}".
+          </div>
+        ) : (
+          <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+            {results.map(p => {
+              const owner = rosterOwner[p.id];
+              return (
+                <button
+                  key={p.id}
+                  onClick={() => openPlayer(p.id)}
+                  className="w-full text-left flex items-center gap-4 px-5 py-3 border-b border-gray-100 last:border-0 hover:bg-blue-50/50 transition-colors"
+                >
+                  <span className="inline-block px-2 py-0.5 bg-gray-100 text-gray-700 text-xs font-bold rounded w-12 text-center shrink-0">
+                    {p.pos}
+                  </span>
+                  <span className="font-bold text-gray-900 flex-1 hover:text-blue-700">{p.name}</span>
+                  <span className="text-sm text-gray-500">{p.team}</span>
+                  {owner && (
+                    <span
+                      className="text-[10px] font-black text-white px-2 py-0.5 rounded shrink-0"
+                      style={{ backgroundColor: owner.primary }}
+                      title={`Rostered by ${owner.name}`}
+                    >
+                      {owner.abbrev}
+                    </span>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ============ PLAYER PAGE ============
+function PlayerPage({ playerId, data, setPage, setActiveTeam }) {
+  const { players, teams, season } = data;
+  const player = players[playerId];
+
+  // Stats are fetched on demand when the page opens
+  const [stats, setStats] = useState({ loading: true, error: false, data: null });
+
+  useEffect(() => {
+    let cancelled = false;
+    setStats({ loading: true, error: false, data: null });
+
+    if (!playerId) return;
+
+    fetch(`${SLEEPER_STATS_API}/stats/nfl/player/${playerId}?season=${season}&season_type=regular&grouping=season`)
+      .then(r => r.json())
+      .then(json => {
+        if (cancelled) return;
+        // The endpoint returns an object with a `stats` sub-object (or null)
+        setStats({ loading: false, error: false, data: json?.stats || null });
+      })
+      .catch(() => {
+        if (!cancelled) setStats({ loading: false, error: true, data: null });
+      });
+
+    return () => { cancelled = true; };
+  }, [playerId, season]);
+
+  if (!player) {
+    return (
+      <div className="bg-gray-50 min-h-screen">
+        <div className="max-w-3xl mx-auto px-4 sm:px-6 py-20 text-center">
+          <h1 className="text-2xl font-display font-black text-gray-900 mb-2">Player not found</h1>
+          <button onClick={() => setPage('Teams')} className="text-blue-700 font-bold">← Back to Teams</button>
+        </div>
+      </div>
+    );
+  }
+
+  const name = player.full_name || `${player.first_name || ''} ${player.last_name || ''}`.trim() || playerId;
+
+  // Find which league team rosters this player
+  const rosteredBy = teams.find(t => (t.playerIds || []).includes(String(playerId)));
+  const isStarter = rosteredBy?.starters?.includes(String(playerId));
+
+  // Convert height (Sleeper gives inches as a string sometimes) to ft-in
+  const formatHeight = (h) => {
+    if (!h) return '—';
+    const inches = parseInt(h, 10);
+    if (isNaN(inches)) return h;
+    return `${Math.floor(inches / 12)}'${inches % 12}"`;
+  };
+
+  const profileFields = [
+    { label: 'Position', value: player.position || '—' },
+    { label: 'NFL Team', value: player.team || 'Free Agent' },
+    { label: 'Number', value: player.number != null ? `#${player.number}` : '—' },
+    { label: 'Age', value: player.age || '—' },
+    { label: 'Height', value: formatHeight(player.height) },
+    { label: 'Weight', value: player.weight ? `${player.weight} lbs` : '—' },
+    { label: 'Years Pro', value: player.years_exp != null ? player.years_exp : '—' },
+    { label: 'College', value: player.college || '—' },
+  ];
+
+  // Pick the most relevant stat lines based on position.
+  // Sleeper stat keys: pass_yd, pass_td, pass_int, rush_yd, rush_td,
+  // rec, rec_yd, rec_td, gp (games played), pts_ppr, etc.
+  const STAT_SETS = {
+    QB: [
+      { key: 'gp', label: 'Games' },
+      { key: 'pass_yd', label: 'Pass Yds' },
+      { key: 'pass_td', label: 'Pass TD' },
+      { key: 'pass_int', label: 'INT' },
+      { key: 'rush_yd', label: 'Rush Yds' },
+      { key: 'rush_td', label: 'Rush TD' },
+    ],
+    RB: [
+      { key: 'gp', label: 'Games' },
+      { key: 'rush_yd', label: 'Rush Yds' },
+      { key: 'rush_td', label: 'Rush TD' },
+      { key: 'rec', label: 'Rec' },
+      { key: 'rec_yd', label: 'Rec Yds' },
+      { key: 'rec_td', label: 'Rec TD' },
+    ],
+    WR: [
+      { key: 'gp', label: 'Games' },
+      { key: 'rec', label: 'Rec' },
+      { key: 'rec_yd', label: 'Rec Yds' },
+      { key: 'rec_td', label: 'Rec TD' },
+      { key: 'rush_yd', label: 'Rush Yds' },
+      { key: 'rush_td', label: 'Rush TD' },
+    ],
+    TE: [
+      { key: 'gp', label: 'Games' },
+      { key: 'rec', label: 'Rec' },
+      { key: 'rec_yd', label: 'Rec Yds' },
+      { key: 'rec_td', label: 'Rec TD' },
+    ],
+    K: [
+      { key: 'gp', label: 'Games' },
+      { key: 'fgm', label: 'FG Made' },
+      { key: 'fga', label: 'FG Att' },
+      { key: 'xpm', label: 'XP Made' },
+    ],
+    DEF: [
+      { key: 'gp', label: 'Games' },
+      { key: 'def_td', label: 'Def TD' },
+      { key: 'def_int', label: 'INT' },
+      { key: 'def_sack', label: 'Sacks' },
+    ],
+  };
+  const statSet = STAT_SETS[player.position] || [
+    { key: 'gp', label: 'Games' },
+    { key: 'pts_ppr', label: 'PPR Pts' },
+  ];
+
+  const accent = rosteredBy?.primary || '#1D4ED8';
+
+  return (
+    <div className="bg-gray-50 min-h-screen">
+      {/* Banner */}
+      <div className="relative overflow-hidden" style={{ backgroundColor: accent }}>
+        <div className="absolute -right-12 -bottom-24 text-white/10 text-[18rem] font-display font-black tracking-tighter leading-none select-none">
+          {player.position || ''}
+        </div>
+        <div className="relative max-w-7xl mx-auto px-4 sm:px-6 py-10">
+          <button onClick={() => setPage('Teams')} className="text-white/80 hover:text-white text-sm font-bold mb-4">
+            ← Back to Teams
+          </button>
+          <div className="text-white/80 font-semibold text-sm">
+            {player.position}{player.team ? ` · ${player.team}` : ''}
+          </div>
+          <h1 className="text-4xl sm:text-6xl font-display font-black text-white tracking-tight leading-tight">
+            {name}
+          </h1>
+          {player.injury_status && (
+            <span className="inline-block mt-3 px-2.5 py-1 bg-red-600 text-white text-xs font-black rounded uppercase tracking-wider">
+              {player.injury_status}
+            </span>
+          )}
+        </div>
+      </div>
+
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 py-8 space-y-6">
+        <div className="grid lg:grid-cols-3 gap-6">
+          {/* Profile details */}
+          <div className="lg:col-span-2 bg-white rounded-xl border border-gray-200 p-6">
+            <h2 className="text-xl font-display font-black text-gray-900 mb-4 uppercase tracking-tight">Profile</h2>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+              {profileFields.map(f => (
+                <div key={f.label}>
+                  <div className="text-xs font-bold text-gray-500 uppercase tracking-widest">{f.label}</div>
+                  <div className="text-gray-900 font-bold mt-1">{f.value}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Rostered-by card */}
+          <div>
+            <div className="bg-white rounded-xl border border-gray-200 p-5">
+              <div className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-3">Fantasy Status</div>
+              {rosteredBy ? (
+                <>
+                  <button
+                    onClick={() => { setActiveTeam(rosteredBy.id); setPage('TeamHub'); window.scrollTo(0, 0); }}
+                    className="flex items-center gap-3 w-full text-left rounded-lg p-2 -m-2 hover:bg-gray-50 transition-colors"
+                  >
+                    <span className="w-10 h-10 flex items-center justify-center font-black text-white text-sm rounded shrink-0" style={{ backgroundColor: rosteredBy.primary }}>
+                      {rosteredBy.abbrev}
+                    </span>
+                    <div className="min-w-0">
+                      <div className="font-bold text-gray-900 truncate hover:text-blue-700">{rosteredBy.name}</div>
+                      <div className="text-xs text-gray-500 truncate">{rosteredBy.owner}</div>
+                    </div>
+                  </button>
+                  <div className="mt-3 pt-3 border-t border-gray-100">
+                    <span className={`text-xs font-black ${isStarter ? 'text-blue-700' : 'text-gray-400'}`}>
+                      {isStarter ? 'IN STARTING LINEUP' : 'ON BENCH'}
+                    </span>
+                  </div>
+                </>
+              ) : (
+                <div className="text-sm text-gray-500">Not rostered in this league (free agent).</div>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* Season stats */}
+        <div className="bg-white rounded-xl border border-gray-200 p-6">
+          <h2 className="text-xl font-display font-black text-gray-900 mb-4 uppercase tracking-tight">
+            {season} Season Stats
+          </h2>
+          {stats.loading ? (
+            <div className="flex items-center gap-3 text-gray-500 text-sm">
+              <div className="w-4 h-4 border-2 border-blue-700 border-t-transparent rounded-full animate-spin" />
+              Loading stats…
+            </div>
+          ) : stats.error ? (
+            <p className="text-gray-500 text-sm">Stats couldn't be loaded right now.</p>
+          ) : !stats.data ? (
+            <p className="text-gray-500 text-sm">No stats recorded for this player this season.</p>
+          ) : (
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
+              {statSet.map(s => {
+                const val = stats.data[s.key];
+                return (
+                  <div key={s.key} className="text-center">
+                    <div className="text-3xl font-display font-black text-gray-900">
+                      {val != null ? (Number.isInteger(val) ? val : val.toFixed(1)) : '0'}
+                    </div>
+                    <div className="text-xs font-bold text-gray-500 uppercase tracking-widest mt-1">{s.label}</div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ============ APP ============
 export default function App() {
   const [page, setPage] = useState('Home');
   const [activeTeam, setActiveTeam] = useState(null);
   const [activeArticle, setActiveArticle] = useState(null);
+  const [activePlayer, setActivePlayer] = useState(null);
   const data = useLeagueData();
 
   // Open an article in the full reading view
   const openArticle = (id) => {
     setActiveArticle(id);
     setPage('Article');
+    window.scrollTo(0, 0);
+  };
+
+  // Open a player's profile page
+  const openPlayer = (playerId) => {
+    setActivePlayer(playerId);
+    setPage('Player');
     window.scrollTo(0, 0);
   };
 
@@ -1124,11 +1506,13 @@ export default function App() {
            {page === 'Home' && <HomePage setPage={setPage} data={data} openArticle={openArticle} />}
            {page === 'Matchups' && <MatchupsPage data={data} />}
            {page === 'Standings' && <StandingsPage data={data} />}
-           {page === 'Transactions' && <TransactionsPage data={data} />}
+           {page === 'Transactions' && <TransactionsPage data={data} setPage={setPage} setActiveTeam={setActiveTeam} openPlayer={openPlayer} />}
            {page === 'Teams' && <TeamsPage data={data} setPage={setPage} setActiveTeam={setActiveTeam} />}
-           {page === 'TeamHub' && <TeamHubPage teamId={activeTeam} data={data} setPage={setPage} />}
+           {page === 'Players' && <PlayersPage data={data} openPlayer={openPlayer} />}
+           {page === 'TeamHub' && <TeamHubPage teamId={activeTeam} data={data} setPage={setPage} openPlayer={openPlayer} />}
            {page === 'News' && <NewsPage openArticle={openArticle} />}
            {page === 'Article' && <ArticlePage articleId={activeArticle} data={data} setPage={setPage} setActiveTeam={setActiveTeam} />}
+           {page === 'Player' && <PlayerPage playerId={activePlayer} data={data} setPage={setPage} setActiveTeam={setActiveTeam} />}
          </>}
         <footer className="bg-blue-950 text-white py-10 mt-12">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 flex flex-col sm:flex-row justify-between items-center gap-4">
