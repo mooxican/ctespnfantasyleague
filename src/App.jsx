@@ -61,7 +61,7 @@ const makeAbbrev = (name) => {
 const FALLBACK_DATA = {
   teams: [
     { id: '1', rosterId: 1, name: 'Touchdown Tornadoes',  owner: 'mike_22',     avatar: null, wins: 10, losses: 3, ties: 0, pointsFor: 1542.8, pointsAgainst: 1390.2, playerIds: ['4046','6786','4035','4983','6770','8155','6938','5849','4866','4034'], starters: ['4046','6786','4035','4983','6770','8155','6938'], primary: '#1E40AF', abbrev: 'TDT' },
-    { id: '2', rosterId: 2, name: 'Gridiron Gladiators',  owner: 'sarah_b',     avatar: null, wins: 9,  losses: 4, ties: 0, pointsFor: 1510.4, pointsAgainst: 1402.1, playerIds: ['4881','7564','4866','5849','6770','4035','5859','8112','6797','4983'], starters: ['4881','7564','4866','5849','6770','4035','5859'], primary: '#B91C1C', abbrev: 'GGD' },
+    { id: '2', rosterId: 2, name: 'Dynasty Destroyers',  owner: 'sarah_b',     avatar: null, wins: 9,  losses: 4, ties: 0, pointsFor: 1510.4, pointsAgainst: 1402.1, playerIds: ['4881','7564','4866','5849','6770','4035','5859','8112','6797','4983'], starters: ['4881','7564','4866','5849','6770','4035','5859'], primary: '#B91C1C', abbrev: 'DYD' },
     { id: '3', rosterId: 3, name: 'End Zone Empire',      owner: 'dave_w',      avatar: null, wins: 8,  losses: 5, ties: 0, pointsFor: 1488.7, pointsAgainst: 1455.6, playerIds: ['6770','4983','5859','4866','8155','5849','4046','4034','6786','4881'], starters: ['6770','4983','5859','4866','8155','5849','4046'], primary: '#15803D', abbrev: 'EZE' },
     { id: '4', rosterId: 4, name: 'Hail Mary Heroes',     owner: 'jen_p',       avatar: null, wins: 7,  losses: 6, ties: 0, pointsFor: 1470.2, pointsAgainst: 1465.9, playerIds: ['5849','4866','8112','6797','4881','7564','4035','5859','6770','4983'], starters: ['5849','4866','8112','6797','4881','7564','4035'], primary: '#7C3AED', abbrev: 'HMH' },
     { id: '5', rosterId: 5, name: 'Pigskin Pirates',      owner: 'tony_k',      avatar: null, wins: 7,  losses: 6, ties: 0, pointsFor: 1455.1, pointsAgainst: 1470.3, playerIds: ['6786','4034','4046','8155','6938','4881','5859','6797','4866','7564'], starters: ['6786','4034','4046','8155','6938','4881','5859'], primary: '#BE185D', abbrev: 'PSP' },
@@ -238,8 +238,8 @@ function Navbar({ currentPage, setPage }) {
       <div className="max-w-7xl mx-auto px-4 sm:px-6">
         <div className="flex justify-between items-center h-16">
           <div onClick={() => setPage('Home')} className="flex items-center gap-2 cursor-pointer">
-            <div className="w-10 h-10 bg-blue-700 flex items-center justify-center font-black text-white text-xl tracking-tighter rounded">G</div>
-            <span className="text-blue-900 font-display font-black text-2xl tracking-tight hidden sm:block">GRIDIRON</span>
+            <div className="w-10 h-10 bg-blue-700 flex items-center justify-center font-black text-white text-xl tracking-tighter rounded shrink-0">C</div>
+            <span className="text-blue-900 font-display font-black text-lg lg:text-xl tracking-tight hidden sm:block">CTESPN Dynasty League</span>
           </div>
           <div className="hidden md:flex gap-1">
             {links.map(link => (
@@ -320,6 +320,25 @@ function MatchupTeamRow({ team, score, won }) {
   );
 }
 
+// Compact single-line team row for the homepage Matchups column
+function MatchupColumnRow({ team, score, won }) {
+  return (
+    <div className="flex items-center justify-between py-0.5">
+      <div className="flex items-center gap-2 min-w-0">
+        <div className="w-6 h-6 flex items-center justify-center font-black text-white text-[10px] rounded shrink-0" style={{ backgroundColor: team.primary }}>
+          {team.abbrev}
+        </div>
+        <span className={`text-sm truncate ${won ? 'font-bold text-gray-900' : 'font-semibold text-gray-600'}`}>
+          {team.name}
+        </span>
+      </div>
+      <span className={`text-lg font-display font-black ml-2 shrink-0 ${won ? 'text-gray-900' : 'text-gray-400'}`}>
+        {score?.toFixed(1) ?? '—'}
+      </span>
+    </div>
+  );
+}
+
 // ============ LOADING / ERROR ============
 function LoadingScreen() {
   return (
@@ -348,7 +367,6 @@ function HomePage({ setPage, data, openArticle }) {
   const { teams, currentWeek, matchupsByWeek } = data;
   const currentMatchups = pairMatchups(matchupsByWeek[currentWeek], teams);
   const featured = articlesByDate[0];          // newest article = featured hero
-  const newsList = articlesByDate.slice(1);    // the rest, newest-first
   const latestThree = articlesByDate.slice(0, 3); // 3 newest for "Latest Stories"
   const topTwo = teams.slice(0, 2);
 
@@ -393,29 +411,30 @@ function HomePage({ setPage, data, openArticle }) {
           </div>
 
           <div className="bg-white rounded-xl border border-gray-200 shadow-sm">
-            <div className="px-5 py-4 border-b border-gray-200">
-              <button className="text-sm font-display font-black text-gray-900 border-b-2 border-blue-700 pb-1">NEWS</button>
+            <div className="px-5 py-4 border-b border-gray-200 flex items-center justify-between">
+              <button className="text-sm font-display font-black text-gray-900 border-b-2 border-blue-700 pb-1">
+                WEEK {currentWeek} MATCHUPS
+              </button>
+              <button onClick={() => setPage('Matchups')} className="text-xs text-blue-700 font-bold hover:text-blue-900">
+                ALL →
+              </button>
             </div>
             <div className="divide-y divide-gray-100">
-              {newsList.slice(0, 6).map(story => (
-                <button key={story.id} onClick={() => openArticle(story.id)} className="w-full text-left px-5 py-3 hover:bg-gray-50 cursor-pointer flex gap-3 items-start">
-                  <svg className="w-4 h-4 text-gray-400 mt-1 shrink-0" fill="currentColor" viewBox="0 0 20 20">
-                    <path fillRule="evenodd" d="M4 4a2 2 0 012-2h8a2 2 0 012 2v12a2 2 0 01-2 2H6a2 2 0 01-2-2V4zm3 1h6v2H7V5zm0 4h6v2H7V9zm0 4h4v2H7v-2z" clipRule="evenodd" />
-                  </svg>
-                  <h3 className="text-sm font-bold text-gray-900 leading-snug hover:text-blue-700">{story.title}</h3>
-                </button>
-              ))}
+              {currentMatchups.length === 0 && (
+                <div className="px-5 py-6 text-sm text-gray-400 text-center">No matchups yet.</div>
+              )}
+              {currentMatchups.map((m, i) => {
+                if (!m.teamA || !m.teamB) return null;
+                const aWon = m.scoreA > m.scoreB;
+                const bWon = m.scoreB > m.scoreA;
+                return (
+                  <div key={i} className="px-5 py-3">
+                    <MatchupColumnRow team={m.teamA} score={m.scoreA} won={aWon} />
+                    <MatchupColumnRow team={m.teamB} score={m.scoreB} won={bWon} />
+                  </div>
+                );
+              })}
             </div>
-          </div>
-        </div>
-
-        <div className="mb-8">
-          <div className="flex justify-between items-center mb-4">
-            <h2 className="text-2xl font-display font-black text-gray-900 uppercase tracking-tight">Week {currentWeek} Matchups</h2>
-            <button onClick={() => setPage('Matchups')} className="text-sm text-blue-700 font-bold hover:text-blue-900">VIEW ALL →</button>
-          </div>
-          <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            {currentMatchups.slice(0, 4).map((m, i) => <MatchupCard key={i} matchup={m} isCurrentWeek={true} />)}
           </div>
         </div>
 
@@ -1497,8 +1516,8 @@ export default function App() {
         <footer className="bg-blue-950 text-white py-10 mt-12">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 flex flex-col sm:flex-row justify-between items-center gap-4">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 bg-white flex items-center justify-center font-black text-blue-700 text-xl rounded">G</div>
-              <span className="font-display font-black text-xl tracking-tight">GRIDIRON</span>
+              <div className="w-10 h-10 bg-white flex items-center justify-center font-black text-blue-700 text-xl rounded">C</div>
+              <span className="font-display font-black text-xl tracking-tight">CTESPN Dynasty League</span>
             </div>
             <p className="text-blue-200 text-sm">Powered by Sleeper API · League {LEAGUE_ID}</p>
           </div>
