@@ -6,6 +6,19 @@ const SLEEPER_API = 'https://api.sleeper.app/v1';
 const SLEEPER_STATS_API = 'https://api.sleeper.com'; // stats live on a different host
 const SLEEPER_CDN = 'https://sleepercdn.com';
 
+// ============ SITE LOGO ============
+// Set this to your logo. Two ways:
+//   1. A URL:  'https://example.com/my-logo.png'
+//   2. A file in the project's /public folder:  '/logo.png'
+//      (drop logo.png into the `public` folder, then use '/logo.png')
+// Leave as '' (empty string) to fall back to the letter badge.
+//
+// NOTE: The current URL is a Discord attachment link, which EXPIRES after
+// a while (see the `ex=` timestamp in the URL). When the logo eventually
+// stops showing, re-host the image properly: save the PNG, drop it into
+// the `public` folder, and change LOGO_URL to '/logo.png'.
+const LOGO_URL = 'https://media.discordapp.net/attachments/1346646791554338949/1504523866171773018/CTESPN_DYNASTY.png?ex=6a074c8a&is=6a05fb0a&hm=466aeb0f8759902dd3f061246aa3365f123429fbea777b7aa5fae4509c2b21b4&=&format=webp&quality=lossless&width=1045&height=1045';
+
 // Distinct color per manager (cycles by roster_id)
 const TEAM_COLORS = [
   '#1E40AF', '#B91C1C', '#15803D', '#7C3AED',
@@ -238,7 +251,11 @@ function Navbar({ currentPage, setPage }) {
       <div className="max-w-7xl mx-auto px-4 sm:px-6">
         <div className="flex justify-between items-center h-16">
           <div onClick={() => setPage('Home')} className="flex items-center gap-2 cursor-pointer">
-            <div className="w-10 h-10 bg-blue-700 flex items-center justify-center font-black text-white text-xl tracking-tighter rounded shrink-0">C</div>
+            {LOGO_URL ? (
+              <img src={LOGO_URL} alt="CTESPN Dynasty League" className="w-10 h-10 object-contain rounded shrink-0" />
+            ) : (
+              <div className="w-10 h-10 bg-blue-700 flex items-center justify-center font-black text-white text-xl tracking-tighter rounded shrink-0">C</div>
+            )}
             <span className="text-blue-900 font-display font-black text-lg lg:text-xl tracking-tight hidden sm:block">CTESPN Dynasty League</span>
           </div>
           <div className="hidden md:flex gap-1">
@@ -1516,7 +1533,11 @@ export default function App() {
         <footer className="bg-blue-950 text-white py-10 mt-12">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 flex flex-col sm:flex-row justify-between items-center gap-4">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 bg-white flex items-center justify-center font-black text-blue-700 text-xl rounded">C</div>
+              {LOGO_URL ? (
+                <img src={LOGO_URL} alt="CTESPN Dynasty League" className="w-10 h-10 object-contain rounded bg-white" />
+              ) : (
+                <div className="w-10 h-10 bg-white flex items-center justify-center font-black text-blue-700 text-xl rounded">C</div>
+              )}
               <span className="font-display font-black text-xl tracking-tight">CTESPN Dynasty League</span>
             </div>
             <p className="text-blue-200 text-sm">Powered by Sleeper API · League {LEAGUE_ID}</p>
