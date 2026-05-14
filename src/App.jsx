@@ -32,13 +32,33 @@ const TEAM_COLORS = [
 const articles = [
   {
     id: 1,
-    date: '2026-05-14',
-    category: 'TEST',
-    title: "Test Article",
-    excerpt: 'This is a test of the article system of the CTESPN Dynasty Website..',
-    image: 'https://media.discordapp.net/attachments/1346646791554338949/1504514190608699612/IMG_0912.jpg?ex=6a074387&is=6a05f207&hm=4da17256a1223191cc3f2a4666eac4799264a80b15cea2d05d19168a3df7e814&=&format=webp&width=1255&height=999',
-    body: "This is a test of the article system of the CTESPN Dynasty Website, May 14, 2026.\n\nThis text should appear as normal with all relevant teams and buttons to redirect them. \nHooray!",
-    teamIds: [3, 5, 6],
+    date: '2025-12-10',
+    category: 'BREAKING',
+    title: "Standings shake up after a wild Week 14",
+    excerpt: 'A wild week of fantasy action reshuffles the playoff picture as the season nears its end.',
+    image: 'https://images.unsplash.com/photo-1566577739112-5180d4bf9390?w=1200&q=80',
+    body: "Week 14 delivered chaos across the league.\n\nSeveral playoff contenders stumbled while teams on the bubble surged at exactly the right time. The result is one of the tightest postseason races we've seen in years.\n\nWith just a few weeks left in the regular season, every matchup now carries serious weight. Replace this text with your own article body — use a blank line between paragraphs to start a new one.",
+    teamIds: [],
+  },
+  {
+    id: 2,
+    date: '2025-12-08',
+    category: 'WAIVERS',
+    title: "Top waiver wire pickups heading into the playoffs",
+    excerpt: 'The under-the-radar players who could swing a championship run.',
+    image: 'https://images.unsplash.com/photo-1508098682722-e99c43a406b2?w=1200&q=80',
+    body: "The waiver wire is where championships are won.\n\nThis is placeholder body text — replace it with your real analysis. Link this article to specific teams by adding their roster IDs to the teamIds array above.",
+    teamIds: [],
+  },
+  {
+    id: 3,
+    date: '2025-12-05',
+    category: 'POWER RANKINGS',
+    title: "Weekly power rankings: Who's the team to beat?",
+    excerpt: 'Our subjective, occasionally controversial ranking of all teams in the league.',
+    image: 'https://images.unsplash.com/photo-1495465798138-718f86d1a4bc?w=1200&q=80',
+    body: "Power rankings are back.\n\nReplace this with your weekly rankings writeup. You can reference multiple teams and add all of them to the teamIds array to create jump buttons for each.",
+    teamIds: [],
   },
 ];
 
@@ -115,7 +135,7 @@ const FALLBACK_DATA = {
 
 // ============ LIVE DATA HOOK ============
 function useLeagueData() {
-  const [data, setData] = useState({ loading: true, error: null, usingFallback: false, league: null, teams: [], players: {}, currentWeek: 1, matchupsByWeek: {} });
+  const [data, setData] = useState({ loading: true, error: null, usingFallback: false, league: null, teams: [], players: {}, currentWeek: 1, matchupsByWeek: {}, transactions: [] });
 
   useEffect(() => {
     let cancelled = false;
@@ -162,11 +182,23 @@ function useLeagueData() {
         const matchupsByWeek = {};
         weeksToFetch.forEach((w, i) => { matchupsByWeek[w] = matchupResults[i]; });
 
+        // Fetch transactions for every week, flatten into one list.
+        // Tag each with its week (the fetch index) so we can group later.
+        const txnResults = await Promise.all(
+          weeksToFetch.map(w => fetch(`${SLEEPER_API}/league/${LEAGUE_ID}/transactions/${w}`).then(r => r.json()))
+        );
+        const transactions = txnResults
+          .flatMap((weekTxns, i) =>
+            (weekTxns || []).map(t => ({ ...t, week: weeksToFetch[i] }))
+          )
+          .filter(t => t && t.status === 'complete')
+          .sort((a, b) => (b.status_updated || 0) - (a.status_updated || 0));
+
         const playersRes = await fetch(`${SLEEPER_API}/players/nfl`);
         const players = await playersRes.json();
 
         if (cancelled) return;
-        setData({ loading: false, error: null, usingFallback: false, league, teams, players, currentWeek, matchupsByWeek });
+        setData({ loading: false, error: null, usingFallback: false, league, teams, players, currentWeek, matchupsByWeek, transactions });
       } catch (err) {
         // Sleeper API unreachable (e.g. inside an artifact preview sandbox).
         // Fall back to demo data so the design is still viewable.
@@ -181,6 +213,7 @@ function useLeagueData() {
           players: FALLBACK_DATA.players,
           currentWeek: FALLBACK_DATA.currentWeek,
           matchupsByWeek: FALLBACK_DATA.matchupsByWeek,
+          transactions: [],
         });
       }
     }
@@ -215,7 +248,7 @@ function pairMatchups(weekMatchups, teams) {
 // ============ NAVBAR ============
 function Navbar({ currentPage, setPage }) {
   const [menuOpen, setMenuOpen] = useState(false);
-  const links = ['Home', 'Matchups', 'News', 'Teams', 'Standings'];
+  const links = ['Home', 'Matchups', 'News', 'Teams', 'Standings', 'Transactions'];
 
   return (
     <nav className="bg-white border-b border-gray-200 sticky top-0 z-50 shadow-sm">
@@ -789,6 +822,176 @@ function TeamSchedule({ team, teams, matchupsByWeek, currentWeek }) {
   );
 }
 
+// ============ TRANSACTIONS PAGE ============
+function TransactionsPage({ data }) {
+  const { teams, players, transactions } = data;
+  const [filter, setFilter] = useState('all');
+
+  // Map roster_id -> team for quick lookup
+  const teamByRoster = {};
+  teams.forEach(t => { teamByRoster[t.rosterId] = t; });
+
+  const playerName = (pid) => {
+    const p = players[pid];
+    if (!p) return pid;
+    return p.full_name || `${p.first_name || ''} ${p.last_name || ''}`.trim() || pid;
+  };
+  const playerPos = (pid) => players[pid]?.position || '';
+
+  const filters = [
+    { key: 'all', label: 'All' },
+    { key: 'trade', label: 'Trades' },
+    { key: 'waiver', label: 'Waivers' },
+    { key: 'free_agent', label: 'Free Agency' },
+  ];
+
+  const filtered = (transactions || []).filter(t =>
+    filter === 'all' ? true : t.type === filter
+  );
+
+  const formatDate = (ms) => {
+    if (!ms) return '';
+    return new Date(ms).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  };
+
+  // Group the filtered transactions by week, keeping weeks in descending order
+  const byWeek = {};
+  filtered.forEach(txn => {
+    const w = txn.week || txn.leg || 0;
+    if (!byWeek[w]) byWeek[w] = [];
+    byWeek[w].push(txn);
+  });
+  const weekNumbers = Object.keys(byWeek).map(Number).sort((a, b) => b - a);
+
+  return (
+    <div className="bg-gray-50 min-h-screen">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 py-10">
+        <h1 className="text-4xl sm:text-5xl font-display font-black text-gray-900 tracking-tight mb-2">TRANSACTIONS</h1>
+        <p className="text-gray-600 mb-6">Every trade, waiver claim, and free agent signing this season.</p>
+
+        {/* Filter buttons */}
+        <div className="flex gap-2 mb-8 flex-wrap">
+          {filters.map(f => (
+            <button key={f.key} onClick={() => setFilter(f.key)}
+              className={`px-4 py-2 rounded-lg text-sm font-bold transition-colors ${
+                filter === f.key ? 'bg-blue-700 text-white' : 'bg-white text-gray-700 hover:bg-gray-100 border border-gray-200'
+              }`}>
+              {f.label}
+            </button>
+          ))}
+        </div>
+
+        {weekNumbers.length === 0 && (
+          <div className="bg-white rounded-xl border border-gray-200 p-8 text-center text-gray-500">
+            No {filter === 'all' ? '' : filters.find(f => f.key === filter)?.label.toLowerCase() + ' '}transactions found.
+          </div>
+        )}
+
+        {/* Week-by-week sections */}
+        <div className="space-y-8">
+          {weekNumbers.map(week => (
+            <div key={week}>
+              <div className="flex items-center gap-3 mb-3">
+                <h2 className="text-xl font-display font-black text-gray-900 uppercase tracking-tight">
+                  Week {week}
+                </h2>
+                <div className="flex-1 h-px bg-gray-200" />
+                <span className="text-xs font-bold text-gray-400">
+                  {byWeek[week].length} {byWeek[week].length === 1 ? 'move' : 'moves'}
+                </span>
+              </div>
+              <div className="space-y-3">
+                {byWeek[week].map((txn) => (
+                  <TransactionRow
+                    key={txn.transaction_id}
+                    txn={txn}
+                    teamByRoster={teamByRoster}
+                    playerName={playerName}
+                    playerPos={playerPos}
+                    formatDate={formatDate}
+                  />
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function TransactionRow({ txn, teamByRoster, playerName, playerPos, formatDate }) {
+  const TYPE_STYLES = {
+    trade: { label: 'TRADE', color: '#7C3AED' },
+    waiver: { label: 'WAIVER', color: '#0F766E' },
+    free_agent: { label: 'FREE AGENT', color: '#C2410C' },
+  };
+  const style = TYPE_STYLES[txn.type] || { label: txn.type?.toUpperCase() || 'MOVE', color: '#6B7280' };
+
+  // adds: { player_id: roster_id }  drops: { player_id: roster_id }
+  const adds = txn.adds || {};
+  const drops = txn.drops || {};
+
+  // Which rosters are involved
+  const rosterIds = txn.roster_ids || [];
+
+  return (
+    <div className="bg-white rounded-xl border border-gray-200 p-5 hover:shadow-md transition-all">
+      <div className="flex items-center justify-between mb-3">
+        <span className="inline-block px-2.5 py-1 text-xs font-black text-white rounded" style={{ backgroundColor: style.color }}>
+          {style.label}
+        </span>
+        <span className="text-xs text-gray-400 font-semibold">{formatDate(txn.status_updated)}</span>
+      </div>
+
+      {/* Teams involved */}
+      <div className="flex flex-wrap gap-2 mb-3">
+        {rosterIds.map(rid => {
+          const team = teamByRoster[rid];
+          if (!team) return null;
+          return (
+            <div key={rid} className="flex items-center gap-2">
+              <span className="w-6 h-6 flex items-center justify-center font-black text-white text-[10px] rounded" style={{ backgroundColor: team.primary }}>
+                {team.abbrev}
+              </span>
+              <span className="text-sm font-bold text-gray-900">{team.name}</span>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Player movement */}
+      <div className="space-y-1.5">
+        {Object.entries(adds).map(([pid, rid]) => {
+          const team = teamByRoster[rid];
+          return (
+            <div key={'add' + pid} className="flex items-center gap-2 text-sm">
+              <span className="text-green-600 font-black">+</span>
+              <span className="font-bold text-gray-900">{playerName(pid)}</span>
+              {playerPos(pid) && <span className="text-xs text-gray-500">{playerPos(pid)}</span>}
+              {team && <span className="text-gray-400 text-xs">→ {team.name}</span>}
+            </div>
+          );
+        })}
+        {Object.entries(drops).map(([pid, rid]) => {
+          const team = teamByRoster[rid];
+          return (
+            <div key={'drop' + pid} className="flex items-center gap-2 text-sm">
+              <span className="text-red-600 font-black">−</span>
+              <span className="font-semibold text-gray-600">{playerName(pid)}</span>
+              {playerPos(pid) && <span className="text-xs text-gray-400">{playerPos(pid)}</span>}
+              {team && <span className="text-gray-400 text-xs">from {team.name}</span>}
+            </div>
+          );
+        })}
+        {Object.keys(adds).length === 0 && Object.keys(drops).length === 0 && (
+          <div className="text-sm text-gray-400">No player movement recorded.</div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // ============ NEWS PAGE ============
 function NewsPage({ openArticle }) {
   return (
@@ -921,6 +1124,7 @@ export default function App() {
            {page === 'Home' && <HomePage setPage={setPage} data={data} openArticle={openArticle} />}
            {page === 'Matchups' && <MatchupsPage data={data} />}
            {page === 'Standings' && <StandingsPage data={data} />}
+           {page === 'Transactions' && <TransactionsPage data={data} />}
            {page === 'Teams' && <TeamsPage data={data} setPage={setPage} setActiveTeam={setActiveTeam} />}
            {page === 'TeamHub' && <TeamHubPage teamId={activeTeam} data={data} setPage={setPage} />}
            {page === 'News' && <NewsPage openArticle={openArticle} />}
