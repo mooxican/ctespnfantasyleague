@@ -17,6 +17,8 @@ const TEAM_COLORS = [
 // ------------------------------------------------------------
 //  Each article has:
 //    id       — any unique number
+//    date     — publish date as 'YYYY-MM-DD'. The homepage "Latest
+//               Stories" section shows the 3 newest by this date.
 //    category — short label shown above the title (e.g. 'TRADE')
 //    title    — the headline
 //    excerpt  — 1-2 sentence summary shown on cards
@@ -30,14 +32,38 @@ const TEAM_COLORS = [
 const articles = [
   {
     id: 1,
-    category: 'TEST',
-    title: "Test Article",
-    excerpt: 'This is a test of the article system of the CTESPN Dynasty Website..',
-    image: 'https://media.discordapp.net/attachments/1346646791554338949/1504514190608699612/IMG_0912.jpg?ex=6a074387&is=6a05f207&hm=4da17256a1223191cc3f2a4666eac4799264a80b15cea2d05d19168a3df7e814&=&format=webp&width=1255&height=999',
-    body: "This is a test of the article system of the CTESPN Dynasty Website, May 14, 2026.\n\nThis text should appear as normal with all relevant teams and buttons to redirect them. \nHooray!",
-    teamIds: [3, 5, 6],
+    date: '2025-12-10',
+    category: 'BREAKING',
+    title: "Standings shake up after a wild Week 14",
+    excerpt: 'A wild week of fantasy action reshuffles the playoff picture as the season nears its end.',
+    image: 'https://images.unsplash.com/photo-1566577739112-5180d4bf9390?w=1200&q=80',
+    body: "Week 14 delivered chaos across the league.\n\nSeveral playoff contenders stumbled while teams on the bubble surged at exactly the right time. The result is one of the tightest postseason races we've seen in years.\n\nWith just a few weeks left in the regular season, every matchup now carries serious weight. Replace this text with your own article body — use a blank line between paragraphs to start a new one.",
+    teamIds: [],
+  },
+  {
+    id: 2,
+    date: '2025-12-08',
+    category: 'WAIVERS',
+    title: "Top waiver wire pickups heading into the playoffs",
+    excerpt: 'The under-the-radar players who could swing a championship run.',
+    image: 'https://images.unsplash.com/photo-1508098682722-e99c43a406b2?w=1200&q=80',
+    body: "The waiver wire is where championships are won.\n\nThis is placeholder body text — replace it with your real analysis. Link this article to specific teams by adding their roster IDs to the teamIds array above.",
+    teamIds: [],
+  },
+  {
+    id: 3,
+    date: '2025-12-05',
+    category: 'POWER RANKINGS',
+    title: "Weekly power rankings: Who's the team to beat?",
+    excerpt: 'Our subjective, occasionally controversial ranking of all teams in the league.',
+    image: 'https://images.unsplash.com/photo-1495465798138-718f86d1a4bc?w=1200&q=80',
+    body: "Power rankings are back.\n\nReplace this with your weekly rankings writeup. You can reference multiple teams and add all of them to the teamIds array to create jump buttons for each.",
+    teamIds: [],
   },
 ];
+
+// Articles sorted newest-first by date. Used across the site.
+const articlesByDate = [...articles].sort((a, b) => new Date(b.date) - new Date(a.date));
 
 // ============ HELPERS ============
 const makeAbbrev = (name) => {
@@ -325,8 +351,9 @@ function ErrorScreen({ error }) {
 function HomePage({ setPage, data, openArticle }) {
   const { teams, currentWeek, matchupsByWeek } = data;
   const currentMatchups = pairMatchups(matchupsByWeek[currentWeek], teams);
-  const featured = articles[0];
-  const newsList = articles.slice(1);
+  const featured = articlesByDate[0];          // newest article = featured hero
+  const newsList = articlesByDate.slice(1);    // the rest, newest-first
+  const latestThree = articlesByDate.slice(0, 3); // 3 newest for "Latest Stories"
   const topTwo = teams.slice(0, 2);
 
   return (
@@ -399,7 +426,7 @@ function HomePage({ setPage, data, openArticle }) {
         <div>
           <h2 className="text-2xl font-display font-black text-gray-900 uppercase tracking-tight mb-4">Latest Stories</h2>
           <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
-            {newsList.slice(0, 6).map(story => (
+            {latestThree.map(story => (
               <button key={story.id} onClick={() => openArticle(story.id)} className="bg-white rounded-xl border border-gray-200 overflow-hidden hover:shadow-md hover:border-blue-700 transition-all cursor-pointer text-left">
                 <div className="h-40 bg-gray-100 overflow-hidden">
                   {story.image ? (
@@ -411,7 +438,14 @@ function HomePage({ setPage, data, openArticle }) {
                   )}
                 </div>
                 <div className="p-5">
-                  <span className="text-xs font-black text-blue-700 tracking-widest">{story.category}</span>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-black text-blue-700 tracking-widest">{story.category}</span>
+                    {story.date && (
+                      <span className="text-xs text-gray-400 font-semibold">
+                        {new Date(story.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                      </span>
+                    )}
+                  </div>
                   <h3 className="text-lg font-bold text-gray-900 mt-2 leading-snug">{story.title}</h3>
                 </div>
               </button>
@@ -783,7 +817,7 @@ function NewsPage({ openArticle }) {
         <h1 className="text-4xl sm:text-5xl font-display font-black text-gray-900 tracking-tight mb-2">NEWS</h1>
         <p className="text-gray-600 mb-8">League news and analysis.</p>
         <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
-          {articles.map(story => (
+          {articlesByDate.map(story => (
             <button key={story.id} onClick={() => openArticle(story.id)} className="bg-white rounded-xl border border-gray-200 overflow-hidden hover:shadow-md hover:border-blue-700 transition-all cursor-pointer text-left">
               <div className="h-40 bg-gray-100 overflow-hidden">
                 {story.image ? (
