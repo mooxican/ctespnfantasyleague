@@ -55,6 +55,7 @@ const articles = [
     teamIds: [3, 5, 6],
   },
 ];
+
 // Articles sorted newest-first by date. Used across the site.
 const articlesByDate = [...articles].sort((a, b) => new Date(b.date) - new Date(a.date));
 
@@ -673,7 +674,7 @@ function MatchupsPage({ data }) {
 }
 
 // ============ STANDINGS PAGE ============
-function StandingsPage({ data }) {
+function StandingsPage({ data, setPage, setActiveTeam }) {
   const { teams } = data;
 
   return (
@@ -691,21 +692,25 @@ function StandingsPage({ data }) {
             <span className="col-span-2 text-right">PA</span>
           </div>
           {teams.map((t, i) => (
-            <div key={t.id} className="grid grid-cols-12 items-center px-4 py-3 border-b border-gray-100 last:border-0 hover:bg-blue-50/50 transition-colors">
+            <button
+              key={t.id}
+              onClick={() => { setActiveTeam(t.id); setPage('TeamHub'); window.scrollTo(0, 0); }}
+              className="w-full text-left grid grid-cols-12 items-center px-4 py-3 border-b border-gray-100 last:border-0 hover:bg-blue-50/50 transition-colors"
+            >
               <span className="col-span-1 text-gray-400 font-bold text-sm">{i + 1}</span>
               <div className="col-span-5 flex items-center gap-3 min-w-0">
                 <div className="w-7 h-7 flex items-center justify-center font-black text-white text-xs rounded shrink-0" style={{ backgroundColor: t.primary }}>
                   {t.abbrev}
                 </div>
                 <div className="min-w-0">
-                  <div className="text-gray-900 font-bold truncate">{t.name}</div>
+                  <div className="text-gray-900 font-bold truncate hover:text-blue-700">{t.name}</div>
                   <div className="text-xs text-gray-500 truncate">{t.owner}</div>
                 </div>
               </div>
               <span className="col-span-2 text-center text-gray-900 font-bold">{t.wins}-{t.losses}{t.ties ? `-${t.ties}` : ''}</span>
               <span className="col-span-2 text-right text-gray-700 font-semibold">{t.pointsFor.toFixed(1)}</span>
               <span className="col-span-2 text-right text-gray-500">{t.pointsAgainst.toFixed(1)}</span>
-            </div>
+            </button>
           ))}
         </div>
       </div>
@@ -2191,7 +2196,7 @@ export default function App() {
          <>
            {page === 'Home' && <HomePage setPage={setPage} data={data} openArticle={openArticle} />}
            {page === 'Matchups' && <MatchupsPage data={data} />}
-           {page === 'Standings' && <StandingsPage data={data} />}
+           {page === 'Standings' && <StandingsPage data={data} setPage={setPage} setActiveTeam={setActiveTeam} />}
            {page === 'Transactions' && <TransactionsPage data={data} setPage={setPage} setActiveTeam={setActiveTeam} openPlayer={openPlayer} />}
            {page === 'Teams' && <TeamsPage data={data} setPage={setPage} setActiveTeam={setActiveTeam} />}
            {page === 'Players' && <PlayersPage data={data} openPlayer={openPlayer} />}
