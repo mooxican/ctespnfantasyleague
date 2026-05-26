@@ -1493,11 +1493,19 @@ function BracketSlot({ team, isWinner }) {
 }
 
 function SeasonHistoryCard({ season }) {
-  const [isOpen, setIsOpen] = useState(true); // expanded by default
+  const [isOpen, setIsOpen] = useState(true); // expanded by default — v2
   const [week, setWeek] = useState(null);
-  const weekNumbers = Object.keys(season.matchupsByWeek || {}).map(Number).sort((a, b) => a - b);
-  const activeWeek = week || weekNumbers[0];
-  const weekMatchups = pairMatchups(season.matchupsByWeek?.[activeWeek], season.standings);
+
+  // Defensive defaults — never crash even if fields are missing
+  const matchupsByWeek = season.matchupsByWeek || {};
+  const standings = season.standings || [];
+  const bracket = season.bracket || [];
+
+  const weekNumbers = Object.keys(matchupsByWeek).map(Number).sort((a, b) => a - b);
+  const activeWeek = week ?? weekNumbers[0] ?? null;
+  const weekMatchups = activeWeek != null
+    ? pairMatchups(matchupsByWeek[activeWeek], standings)
+    : [];
 
   return (
     <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
@@ -1529,7 +1537,7 @@ function SeasonHistoryCard({ season }) {
         <span className="col-span-2 text-center">W-L</span>
         <span className="col-span-3 text-right">Points For</span>
       </div>
-      {season.standings.map((t, i) => (
+      {standings.map((t, i) => (
         <div key={t.id} className="grid grid-cols-12 items-center px-6 py-2.5 border-b border-gray-100 last:border-0">
           <span className="col-span-1 text-gray-400 font-bold text-sm">{i + 1}</span>
           <div className="col-span-6 flex items-center gap-3 min-w-0">
@@ -1542,7 +1550,7 @@ function SeasonHistoryCard({ season }) {
             </div>
           </div>
           <span className="col-span-2 text-center text-gray-900 font-bold">{t.wins}-{t.losses}{t.ties ? `-${t.ties}` : ''}</span>
-          <span className="col-span-3 text-right text-gray-700 font-semibold">{t.pointsFor.toFixed(1)}</span>
+          <span className="col-span-3 text-right text-gray-700 font-semibold">{(t.pointsFor || 0).toFixed(1)}</span>
         </div>
       ))}
 
@@ -1552,11 +1560,11 @@ function SeasonHistoryCard({ season }) {
           {/* Playoff bracket */}
           <div>
             <h3 className="text-sm font-black text-gray-500 uppercase tracking-widest mb-3">Playoff Bracket</h3>
-            <PlayoffBracket bracket={season.bracket} standings={season.standings} />
+            <PlayoffBracket bracket={bracket} standings={standings} />
           </div>
 
           {/* Matchups by week */}
-          {weekNumbers.length > 0 && (
+          {weekNumbers.length > 0 && activeWeek != null && (
             <div>
               <h3 className="text-sm font-black text-gray-500 uppercase tracking-widest mb-3">Matchups</h3>
               <div className="flex gap-2 mb-4 overflow-x-auto pb-2">
@@ -1583,6 +1591,9 @@ function SeasonHistoryCard({ season }) {
                 })}
               </div>
             </div>
+          )}
+          {weekNumbers.length === 0 && (
+            <p className="text-sm text-gray-500">No weekly matchup data available for this season.</p>
           )}
         </div>
       )}
