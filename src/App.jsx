@@ -526,8 +526,8 @@ function ErrorScreen({ error }) {
 }
 
 // ============ HOME PAGE ============
-function HomePage({ setPage, data, openArticle }) {
-  const { teams, currentWeek, matchupsByWeek } = data;
+function HomePage({ setPage, data, openArticle, openMatchup }) {
+  const { teams, currentWeek, matchupsByWeek, season } = data;
   const currentMatchups = pairMatchups(matchupsByWeek[currentWeek], teams);
   const featured = articlesByDate[0];          // newest article = featured hero
   const latestThree = articlesByDate.slice(0, 3); // 3 newest for "Latest Stories"
@@ -591,10 +591,14 @@ function HomePage({ setPage, data, openArticle }) {
                 const aWon = m.scoreA > m.scoreB;
                 const bWon = m.scoreB > m.scoreA;
                 return (
-                  <div key={i} className="px-5 py-3">
+                  <button
+                    key={i}
+                    onClick={() => openMatchup && openMatchup({ season, week: currentWeek, ownerA: m.teamA.owner, ownerB: m.teamB.owner })}
+                    className="w-full text-left px-5 py-3 hover:bg-gray-50 transition-colors"
+                  >
                     <MatchupColumnRow team={m.teamA} score={m.scoreA} won={aWon} />
                     <MatchupColumnRow team={m.teamB} score={m.scoreB} won={bWon} />
-                  </div>
+                  </button>
                 );
               })}
             </div>
@@ -636,8 +640,8 @@ function HomePage({ setPage, data, openArticle }) {
 }
 
 // ============ MATCHUPS PAGE ============
-function MatchupsPage({ data }) {
-  const { teams, currentWeek, matchupsByWeek } = data;
+function MatchupsPage({ data, openMatchup }) {
+  const { teams, currentWeek, matchupsByWeek, season } = data;
   const [week, setWeek] = useState(currentWeek);
   const weekMatchups = pairMatchups(matchupsByWeek[week], teams);
   const weeks = Object.keys(matchupsByWeek).map(Number).sort((a, b) => a - b);
@@ -663,7 +667,15 @@ function MatchupsPage({ data }) {
         </div>
 
         <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {weekMatchups.map((m, i) => <MatchupCard key={i} matchup={m} isCurrentWeek={week === currentWeek} />)}
+          {weekMatchups.map((m, i) => (
+            <button
+              key={i}
+              onClick={() => openMatchup && openMatchup({ season, week, ownerA: m.teamA.owner, ownerB: m.teamB.owner })}
+              className="text-left"
+            >
+              <MatchupCard matchup={m} isCurrentWeek={week === currentWeek} />
+            </button>
+          ))}
           {weekMatchups.length === 0 && (
             <div className="col-span-full bg-white rounded-xl border border-gray-200 p-8 text-center text-gray-500">
               No matchup data available for Week {week} yet.
@@ -1371,7 +1383,7 @@ function ArticlePage({ articleId, data, setPage, setActiveTeam }) {
 }
 
 // ============ HISTORY PAGE ============
-function HistoryPage({ data, setPage, setActiveTeam }) {
+function HistoryPage({ data, setPage, setActiveTeam, openMatchup }) {
   const { history, players } = data;
 
   if (!history || history.length === 0) {
@@ -1395,7 +1407,7 @@ function HistoryPage({ data, setPage, setActiveTeam }) {
 
         <div className="space-y-6">
           {history.map(season => (
-            <SeasonHistoryCard key={season.leagueId} season={season} players={players} />
+            <SeasonHistoryCard key={season.leagueId} season={season} players={players} openMatchup={openMatchup} />
           ))}
         </div>
       </div>
@@ -1594,10 +1606,9 @@ function TeamLineup({ team, raw, score, players, won }) {
   );
 }
 
-function SeasonHistoryCard({ season, players }) {
+function SeasonHistoryCard({ season, players, openMatchup }) {
   const [isOpen, setIsOpen] = useState(true); // expanded by default — v2
   const [week, setWeek] = useState(null);
-  const [openMatchup, setOpenMatchup] = useState(null); // index of expanded matchup, or null
 
   // Defensive defaults — never crash even if fields are missing
   const matchupsByWeek = season.matchupsByWeek || {};
@@ -1672,7 +1683,7 @@ function SeasonHistoryCard({ season, players }) {
               <h3 className="text-sm font-black text-gray-500 uppercase tracking-widest mb-3">Matchups</h3>
               <div className="flex gap-2 mb-4 overflow-x-auto pb-2">
                 {weekNumbers.map(w => (
-                  <button key={w} onClick={() => { setWeek(w); setOpenMatchup(null); }}
+                  <button key={w} onClick={() => setWeek(w)}
                     className={`px-3 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap transition-colors ${
                       w === activeWeek ? 'bg-blue-700 text-white' : 'bg-white text-gray-700 hover:bg-gray-100 border border-gray-200'
                     }`}>
@@ -1685,32 +1696,18 @@ function SeasonHistoryCard({ season, players }) {
                   if (!m.teamA || !m.teamB) return null;
                   const aWon = m.scoreA > m.scoreB;
                   const bWon = m.scoreB > m.scoreA;
-                  const isExpanded = openMatchup === i;
                   return (
                     <button
                       key={i}
-                      onClick={() => setOpenMatchup(isExpanded ? null : i)}
-                      className={`text-left bg-white rounded-lg border p-3 transition-all ${
-                        isExpanded ? 'border-blue-700 ring-2 ring-blue-100' : 'border-gray-200 hover:border-blue-300'
-                      }`}
+                      onClick={() => openMatchup && openMatchup({ season: season.season, week: activeWeek, ownerA: m.teamA.owner, ownerB: m.teamB.owner })}
+                      className="text-left bg-white rounded-lg border border-gray-200 hover:border-blue-300 hover:shadow-sm p-3 transition-all"
                     >
                       <MatchupColumnRow team={m.teamA} score={m.scoreA} won={aWon} />
                       <MatchupColumnRow team={m.teamB} score={m.scoreB} won={bWon} />
-                      <div className="text-[10px] text-gray-400 font-bold uppercase tracking-widest mt-2 text-center">
-                        {isExpanded ? 'Hide lineups ▲' : 'View lineups ▼'}
-                      </div>
                     </button>
                   );
                 })}
               </div>
-              {openMatchup != null && weekMatchups[openMatchup] && (
-                <div className="mt-4">
-                  <MatchupBreakdown
-                    matchup={weekMatchups[openMatchup]}
-                    players={players}
-                  />
-                </div>
-              )}
             </div>
           )}
           {weekNumbers.length === 0 && (
@@ -1834,6 +1831,345 @@ function PlayersPage({ data, openPlayer }) {
           </div>
         )}
       </div>
+    </div>
+  );
+}
+
+// ============ MATCHUP DETAIL PAGE ============
+// Helpers for matchup history. All operate on the merged set of:
+//   - current season's matchupsByWeek (data.matchupsByWeek)
+//   - every past season's matchupsByWeek (from data.history)
+
+// Collect every matchup in chronological order across all seasons.
+// Returns array of { season, week, raw, opponentRaw, teamOwner, opponentOwner }
+// where `raw` is the matchup-side for the team we care about.
+function collectAllMatchupsForOwner(ownerName, data) {
+  if (!ownerName) return [];
+
+  const collected = [];
+
+  // Build (season, week, weekMatchups, standings) tuples
+  const seasonChunks = [];
+  // Past seasons — oldest to newest
+  [...(data.history || [])].reverse().forEach(s => {
+    const weekNums = Object.keys(s.matchupsByWeek || {}).map(Number).sort((a, b) => a - b);
+    weekNums.forEach(w => {
+      seasonChunks.push({
+        season: s.season,
+        week: w,
+        weekMatchups: s.matchupsByWeek[w],
+        standings: s.standings,
+      });
+    });
+  });
+  // Current season — last
+  const currentWeekNums = Object.keys(data.matchupsByWeek || {}).map(Number).sort((a, b) => a - b);
+  currentWeekNums.forEach(w => {
+    seasonChunks.push({
+      season: data.season,
+      week: w,
+      weekMatchups: data.matchupsByWeek[w],
+      standings: data.teams, // current-season teams share the same shape as past standings
+    });
+  });
+
+  // For each (season, week), find the matchup containing this owner
+  seasonChunks.forEach(({ season, week, weekMatchups, standings }) => {
+    if (!weekMatchups || !standings) return;
+
+    // Owner -> rosterId for this season
+    const myTeam = standings.find(t => t.owner === ownerName);
+    if (!myTeam) return;
+    const myEntry = weekMatchups.find(m => m.roster_id === myTeam.rosterId);
+    if (!myEntry) return;
+    // Skip un-played matchups (no points yet)
+    if (myEntry.points == null || myEntry.points === 0) {
+      // Could be a bye or future game; still capture if it has a matchup_id pair
+    }
+    const oppEntry = weekMatchups.find(
+      m => m.matchup_id === myEntry.matchup_id && m.roster_id !== myEntry.rosterId
+    );
+    if (!oppEntry) return;
+    const oppTeam = standings.find(t => t.rosterId === oppEntry.roster_id);
+    if (!oppTeam) return;
+
+    collected.push({
+      season,
+      week,
+      myTeam,
+      oppTeam,
+      myPoints: myEntry.points,
+      oppPoints: oppEntry.points,
+      played: (myEntry.points || 0) > 0 || (oppEntry.points || 0) > 0,
+    });
+  });
+
+  return collected;
+}
+
+function MatchupDetailPage({ matchupKey, data, setPage, setActiveTeam, openPlayer, openMatchup }) {
+  // matchupKey shape: { season, week, ownerA, ownerB, fromCurrentSeason }
+  if (!matchupKey) {
+    return (
+      <div className="bg-gray-50 min-h-screen">
+        <div className="max-w-3xl mx-auto px-4 sm:px-6 py-20 text-center">
+          <h1 className="text-2xl font-display font-black text-gray-900 mb-2">Matchup not found</h1>
+          <button onClick={() => setPage('Matchups')} className="text-blue-700 font-bold">← Back to Matchups</button>
+        </div>
+      </div>
+    );
+  }
+
+  const { season: matchSeason, week: matchWeek, ownerA, ownerB } = matchupKey;
+
+  // Find the season's standings + raw matchup entries
+  let standings, weekMatchups;
+  if (matchSeason === data.season) {
+    standings = data.teams;
+    weekMatchups = data.matchupsByWeek?.[matchWeek];
+  } else {
+    const pastSeason = (data.history || []).find(s => s.season === matchSeason);
+    standings = pastSeason?.standings;
+    weekMatchups = pastSeason?.matchupsByWeek?.[matchWeek];
+  }
+
+  const teamA = standings?.find(t => t.owner === ownerA);
+  const teamB = standings?.find(t => t.owner === ownerB);
+  if (!teamA || !teamB || !weekMatchups) {
+    return (
+      <div className="bg-gray-50 min-h-screen">
+        <div className="max-w-3xl mx-auto px-4 sm:px-6 py-20 text-center">
+          <h1 className="text-2xl font-display font-black text-gray-900 mb-2">Matchup data unavailable</h1>
+          <button onClick={() => setPage('Matchups')} className="text-blue-700 font-bold">← Back</button>
+        </div>
+      </div>
+    );
+  }
+
+  const rawA = weekMatchups.find(m => m.roster_id === teamA.rosterId);
+  const rawB = weekMatchups.find(m => m.roster_id === teamB.rosterId);
+  const scoreA = rawA?.points || 0;
+  const scoreB = rawB?.points || 0;
+  const aWon = scoreA > scoreB;
+  const bWon = scoreB > scoreA;
+  const played = scoreA > 0 || scoreB > 0;
+
+  // History across all seasons for both managers (chronological — earliest first)
+  const allA = collectAllMatchupsForOwner(ownerA, data);
+  const allB = collectAllMatchupsForOwner(ownerB, data);
+
+  // Previous N games for each team = games before this one (this season + earlier),
+  // newest first.
+  const isBeforeThis = (m) => {
+    if (m.season < matchSeason) return true;
+    if (m.season > matchSeason) return false;
+    return m.week < matchWeek;
+  };
+  const prevA = allA.filter(m => isBeforeThis(m) && m.played).slice(-3).reverse();
+  const prevB = allB.filter(m => isBeforeThis(m) && m.played).slice(-3).reverse();
+
+  // Head-to-head: every game between these two owners across all seasons,
+  // including this one (so the user can see context).
+  const h2h = allA.filter(m => m.oppTeam.owner === ownerB && m.played);
+  // h2h record from A's perspective
+  let aWins = 0, bWins = 0, ties = 0;
+  h2h.forEach(m => {
+    if (m.myPoints > m.oppPoints) aWins++;
+    else if (m.oppPoints > m.myPoints) bWins++;
+    else ties++;
+  });
+
+  // Navigate to a different matchup detail
+  const openMatchupDetail = (m, perspectiveOwner) => {
+    setPage('MatchupDetail');
+    // Open via parent — but we need to set the key. We'll use a global handler
+    // passed in from App via window for simplicity; here we use setPage state.
+    window.scrollTo(0, 0);
+  };
+
+  return (
+    <div className="bg-gray-50 min-h-screen">
+      {/* Header */}
+      <div className="bg-gradient-to-br from-blue-900 to-blue-950 text-white">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 py-6">
+          <button onClick={() => setPage('Matchups')} className="text-blue-200 hover:text-white text-sm font-bold mb-3">
+            ← Back to Matchups
+          </button>
+          <div className="text-blue-200 text-xs font-bold tracking-widest mb-2">
+            {matchSeason} · WEEK {matchWeek}{!played ? ' · UPCOMING' : ''}
+          </div>
+          <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-4">
+            <button
+              onClick={() => { setActiveTeam(teamA.id); setPage('TeamHub'); window.scrollTo(0, 0); }}
+              className="text-left flex items-center gap-3 min-w-0 hover:opacity-80 transition-opacity"
+            >
+              <span className="w-12 h-12 flex items-center justify-center font-black text-white rounded shrink-0" style={{ backgroundColor: teamA.primary }}>
+                {teamA.abbrev}
+              </span>
+              <div className="min-w-0">
+                <div className={`text-xl font-display font-black truncate ${aWon || !played ? 'text-white' : 'text-blue-300'}`}>{teamA.name}</div>
+                <div className="text-xs text-blue-200 truncate">{teamA.owner}</div>
+              </div>
+            </button>
+            <div className="text-center px-2">
+              <div className="flex items-baseline gap-2">
+                <span className={`text-4xl sm:text-5xl font-display font-black ${aWon ? 'text-white' : played ? 'text-blue-300' : 'text-blue-200'}`}>
+                  {played ? scoreA.toFixed(1) : '—'}
+                </span>
+                <span className="text-blue-300 text-2xl font-display font-black">·</span>
+                <span className={`text-4xl sm:text-5xl font-display font-black ${bWon ? 'text-white' : played ? 'text-blue-300' : 'text-blue-200'}`}>
+                  {played ? scoreB.toFixed(1) : '—'}
+                </span>
+              </div>
+            </div>
+            <button
+              onClick={() => { setActiveTeam(teamB.id); setPage('TeamHub'); window.scrollTo(0, 0); }}
+              className="text-right flex items-center gap-3 justify-end min-w-0 hover:opacity-80 transition-opacity"
+            >
+              <div className="min-w-0 text-right">
+                <div className={`text-xl font-display font-black truncate ${bWon || !played ? 'text-white' : 'text-blue-300'}`}>{teamB.name}</div>
+                <div className="text-xs text-blue-200 truncate">{teamB.owner}</div>
+              </div>
+              <span className="w-12 h-12 flex items-center justify-center font-black text-white rounded shrink-0" style={{ backgroundColor: teamB.primary }}>
+                {teamB.abbrev}
+              </span>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 py-8 space-y-6">
+        {/* Comparison strip */}
+        <div className="bg-white rounded-xl border border-gray-200 p-6">
+          <h2 className="text-sm font-black text-gray-500 uppercase tracking-widest mb-4">Season Comparison</h2>
+          <div className="grid grid-cols-[1fr_auto_1fr] gap-4 text-sm">
+            <ComparisonRow
+              left={`${teamA.wins}-${teamA.losses}${teamA.ties ? `-${teamA.ties}` : ''}`}
+              label="Record"
+              right={`${teamB.wins}-${teamB.losses}${teamB.ties ? `-${teamB.ties}` : ''}`}
+            />
+            <ComparisonRow
+              left={(teamA.pointsFor || 0).toFixed(1)}
+              label="Points For"
+              right={(teamB.pointsFor || 0).toFixed(1)}
+            />
+            <ComparisonRow
+              left={(teamA.pointsAgainst || 0).toFixed(1)}
+              label="Points Against"
+              right={(teamB.pointsAgainst || 0).toFixed(1)}
+            />
+          </div>
+        </div>
+
+        {/* Head-to-head */}
+        {h2h.length > 0 && (
+          <div className="bg-white rounded-xl border border-gray-200 p-6">
+            <h2 className="text-sm font-black text-gray-500 uppercase tracking-widest mb-4">Head-to-Head ({h2h.length} {h2h.length === 1 ? 'meeting' : 'meetings'})</h2>
+            <div className="grid grid-cols-3 gap-4 mb-4 text-center">
+              <div>
+                <div className="text-3xl font-display font-black text-gray-900">{aWins}</div>
+                <div className="text-xs font-bold text-gray-500 uppercase tracking-widest mt-1">{teamA.owner} Wins</div>
+              </div>
+              <div>
+                <div className="text-3xl font-display font-black text-gray-400">{ties}</div>
+                <div className="text-xs font-bold text-gray-500 uppercase tracking-widest mt-1">Ties</div>
+              </div>
+              <div>
+                <div className="text-3xl font-display font-black text-gray-900">{bWins}</div>
+                <div className="text-xs font-bold text-gray-500 uppercase tracking-widest mt-1">{teamB.owner} Wins</div>
+              </div>
+            </div>
+            <div className="space-y-1 border-t border-gray-100 pt-3">
+              {[...h2h].reverse().map((m, i) => {
+                const isThisOne = m.season === matchSeason && m.week === matchWeek;
+                const aMore = m.myPoints > m.oppPoints;
+                return (
+                  <div
+                    key={i}
+                    className={`flex items-center gap-2 py-1.5 text-sm ${isThisOne ? 'bg-blue-50 rounded-lg px-2 -mx-2' : ''}`}
+                  >
+                    <span className="text-xs text-gray-400 font-bold w-20 shrink-0">{m.season} · Wk {m.week}</span>
+                    <span className={`font-bold text-right flex-1 truncate ${aMore ? 'text-gray-900' : 'text-gray-500'}`}>{teamA.name}</span>
+                    <span className={`font-display font-black w-12 text-right ${aMore ? 'text-gray-900' : 'text-gray-400'}`}>{m.myPoints?.toFixed(1)}</span>
+                    <span className="text-gray-300">·</span>
+                    <span className={`font-display font-black w-12 ${!aMore ? 'text-gray-900' : 'text-gray-400'}`}>{m.oppPoints?.toFixed(1)}</span>
+                    <span className={`font-bold flex-1 truncate ${!aMore ? 'text-gray-900' : 'text-gray-500'}`}>{teamB.name}</span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* Recent form (previous 3 games each) */}
+        <div className="grid md:grid-cols-2 gap-6">
+          <FormCard team={teamA} games={prevA} openMatchup={openMatchup} />
+          <FormCard team={teamB} games={prevB} openMatchup={openMatchup} />
+        </div>
+
+        {/* Lineup breakdown */}
+        {played && rawA && rawB && (
+          <div>
+            <h2 className="text-sm font-black text-gray-500 uppercase tracking-widest mb-3">Lineups</h2>
+            <MatchupBreakdown
+              matchup={{ teamA, teamB, scoreA, scoreB, rawA, rawB }}
+              players={data.players}
+            />
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function ComparisonRow({ left, label, right }) {
+  return (
+    <>
+      <div className="text-right font-display font-black text-gray-900 text-lg">{left}</div>
+      <div className="text-center text-xs font-bold text-gray-500 uppercase tracking-widest self-center px-4">{label}</div>
+      <div className="text-left font-display font-black text-gray-900 text-lg">{right}</div>
+    </>
+  );
+}
+
+function FormCard({ team, games, openMatchup }) {
+  return (
+    <div className="bg-white rounded-xl border border-gray-200 p-5">
+      <div className="flex items-center gap-2 mb-4">
+        <span className="w-7 h-7 flex items-center justify-center font-black text-white text-[10px] rounded" style={{ backgroundColor: team.primary }}>
+          {team.abbrev}
+        </span>
+        <span className="font-bold text-gray-900 truncate">{team.name}</span>
+        <span className="text-xs font-black text-gray-500 uppercase tracking-widest ml-auto">Last {games.length}</span>
+      </div>
+      {games.length === 0 ? (
+        <p className="text-sm text-gray-400">No prior games.</p>
+      ) : (
+        <div className="space-y-2">
+          {games.map((g, i) => {
+            const won = g.myPoints > g.oppPoints;
+            const lost = g.oppPoints > g.myPoints;
+            return (
+              <button
+                key={i}
+                onClick={() => openMatchup && openMatchup({ season: g.season, week: g.week, ownerA: team.owner, ownerB: g.oppTeam.owner })}
+                className="w-full text-left flex items-center gap-2 text-sm py-1 px-2 -mx-2 rounded hover:bg-gray-50 transition-colors"
+              >
+                <span className={`w-6 h-6 flex items-center justify-center text-[10px] font-black rounded shrink-0 ${
+                  won ? 'bg-green-100 text-green-700' : lost ? 'bg-red-100 text-red-700' : 'bg-gray-100 text-gray-500'
+                }`}>
+                  {won ? 'W' : lost ? 'L' : 'T'}
+                </span>
+                <span className="text-xs text-gray-400 font-bold shrink-0">Wk {g.week}</span>
+                <span className="text-gray-700 truncate flex-1">vs {g.oppTeam.name}</span>
+                <span className="font-display font-black text-gray-900 shrink-0">
+                  {g.myPoints?.toFixed(1)}–{g.oppPoints?.toFixed(1)}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }
@@ -2291,6 +2627,7 @@ export default function App() {
   const [activeTeam, setActiveTeam] = useState(null);
   const [activeArticle, setActiveArticle] = useState(null);
   const [activePlayer, setActivePlayer] = useState(null);
+  const [activeMatchup, setActiveMatchup] = useState(null); // { season, week, ownerA, ownerB }
   const data = useLeagueData();
 
   // Open an article in the full reading view
@@ -2304,6 +2641,13 @@ export default function App() {
   const openPlayer = (playerId) => {
     setActivePlayer(playerId);
     setPage('Player');
+    window.scrollTo(0, 0);
+  };
+
+  // Open a matchup detail page. Pass { season, week, ownerA, ownerB }.
+  const openMatchup = (key) => {
+    setActiveMatchup(key);
+    setPage('MatchupDetail');
     window.scrollTo(0, 0);
   };
 
@@ -2326,17 +2670,18 @@ export default function App() {
         {data.loading ? <LoadingScreen /> :
          data.error ? <ErrorScreen error={data.error} /> :
          <>
-           {page === 'Home' && <HomePage setPage={setPage} data={data} openArticle={openArticle} />}
-           {page === 'Matchups' && <MatchupsPage data={data} />}
+           {page === 'Home' && <HomePage setPage={setPage} data={data} openArticle={openArticle} openMatchup={openMatchup} />}
+           {page === 'Matchups' && <MatchupsPage data={data} openMatchup={openMatchup} />}
            {page === 'Standings' && <StandingsPage data={data} setPage={setPage} setActiveTeam={setActiveTeam} />}
            {page === 'Transactions' && <TransactionsPage data={data} setPage={setPage} setActiveTeam={setActiveTeam} openPlayer={openPlayer} />}
            {page === 'Teams' && <TeamsPage data={data} setPage={setPage} setActiveTeam={setActiveTeam} />}
            {page === 'Players' && <PlayersPage data={data} openPlayer={openPlayer} />}
-           {page === 'History' && <HistoryPage data={data} setPage={setPage} setActiveTeam={setActiveTeam} />}
+           {page === 'History' && <HistoryPage data={data} setPage={setPage} setActiveTeam={setActiveTeam} openMatchup={openMatchup} />}
            {page === 'TeamHub' && <TeamHubPage teamId={activeTeam} data={data} setPage={setPage} openPlayer={openPlayer} />}
            {page === 'News' && <NewsPage openArticle={openArticle} />}
            {page === 'Article' && <ArticlePage articleId={activeArticle} data={data} setPage={setPage} setActiveTeam={setActiveTeam} />}
            {page === 'Player' && <PlayerPage playerId={activePlayer} data={data} setPage={setPage} setActiveTeam={setActiveTeam} />}
+           {page === 'MatchupDetail' && <MatchupDetailPage matchupKey={activeMatchup} data={data} setPage={setPage} setActiveTeam={setActiveTeam} openPlayer={openPlayer} openMatchup={openMatchup} />}
          </>}
         <footer className="bg-blue-950 text-white py-10 mt-12">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 flex flex-col sm:flex-row justify-between items-center gap-4">
