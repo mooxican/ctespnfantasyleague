@@ -381,6 +381,8 @@ function pairMatchups(weekMatchups, teams) {
       teamB: teams.find(t => t.rosterId === b.roster_id),
       scoreA: a.points,
       scoreB: b.points,
+      rawA: a, // includes starters, players, players_points
+      rawB: b,
     };
   }).filter(Boolean);
 }
@@ -1370,7 +1372,7 @@ function ArticlePage({ articleId, data, setPage, setActiveTeam }) {
 
 // ============ HISTORY PAGE ============
 function HistoryPage({ data, setPage, setActiveTeam }) {
-  const { history } = data;
+  const { history, players } = data;
 
   if (!history || history.length === 0) {
     return (
@@ -1393,7 +1395,7 @@ function HistoryPage({ data, setPage, setActiveTeam }) {
 
         <div className="space-y-6">
           {history.map(season => (
-            <SeasonHistoryCard key={season.leagueId} season={season} />
+            <SeasonHistoryCard key={season.leagueId} season={season} players={players} />
           ))}
         </div>
       </div>
@@ -1492,9 +1494,110 @@ function BracketSlot({ team, isWinner }) {
   );
 }
 
-function SeasonHistoryCard({ season }) {
+// Detailed matchup breakdown showing both teams' starters + bench with per-player points
+function MatchupBreakdown({ matchup, players }) {
+  const { teamA, teamB, scoreA, scoreB, rawA, rawB } = matchup;
+  if (!rawA || !rawB) {
+    return (
+      <div className="bg-white rounded-lg border border-gray-200 p-4 text-sm text-gray-500">
+        Lineup data not available for this matchup.
+      </div>
+    );
+  }
+
+  return (
+    <div className="bg-white rounded-xl border border-blue-200 overflow-hidden">
+      <div className="grid grid-cols-1 md:grid-cols-2 divide-y md:divide-y-0 md:divide-x divide-gray-100">
+        <TeamLineup team={teamA} raw={rawA} score={scoreA} players={players} won={scoreA > scoreB} />
+        <TeamLineup team={teamB} raw={rawB} score={scoreB} players={players} won={scoreB > scoreA} />
+      </div>
+    </div>
+  );
+}
+
+function TeamLineup({ team, raw, score, players, won }) {
+  const starterIds = raw.starters || [];
+  const allIds = raw.players || [];
+  const pointsMap = raw.players_points || {};
+  // Bench = all players minus starters (preserving order)
+  const benchIds = allIds.filter(pid => !starterIds.includes(pid));
+
+  const playerName = (pid) => {
+    const p = players[pid];
+    if (!p) return pid; // Player not in current DB (likely retired)
+    return p.full_name || `${p.first_name || ''} ${p.last_name || ''}`.trim() || pid;
+  };
+  const playerPos = (pid) => players[pid]?.position || '';
+
+  const renderPlayer = (pid, isStarter) => {
+    if (!pid || pid === '0') {
+      return (
+        <div key={pid + Math.random()} className="flex items-center justify-between py-1.5 text-sm text-gray-400 italic">
+          <span>Empty slot</span>
+          <span>—</span>
+        </div>
+      );
+    }
+    const pts = pointsMap[pid];
+    return (
+      <div key={pid} className="flex items-center justify-between py-1.5 text-sm">
+        <div className="flex items-center gap-2 min-w-0">
+          {playerPos(pid) && (
+            <span className="text-[10px] font-black text-gray-500 bg-gray-100 px-1.5 py-0.5 rounded shrink-0 w-9 text-center">
+              {playerPos(pid)}
+            </span>
+          )}
+          <span className={`truncate ${isStarter ? 'font-bold text-gray-900' : 'text-gray-600'}`}>
+            {playerName(pid)}
+          </span>
+        </div>
+        <span className={`font-display font-black ml-2 shrink-0 ${isStarter ? 'text-gray-900' : 'text-gray-400'}`}>
+          {pts != null ? pts.toFixed(1) : '—'}
+        </span>
+      </div>
+    );
+  };
+
+  return (
+    <div className="p-4">
+      {/* Header */}
+      <div className="flex items-center justify-between pb-3 mb-3 border-b border-gray-200">
+        <div className="flex items-center gap-2 min-w-0">
+          <span className="w-7 h-7 flex items-center justify-center font-black text-white text-[10px] rounded shrink-0" style={{ backgroundColor: team.primary }}>
+            {team.abbrev}
+          </span>
+          <span className={`font-bold truncate ${won ? 'text-gray-900' : 'text-gray-600'}`}>{team.name}</span>
+        </div>
+        <span className={`text-2xl font-display font-black ml-2 shrink-0 ${won ? 'text-gray-900' : 'text-gray-400'}`}>
+          {score != null ? score.toFixed(1) : '—'}
+        </span>
+      </div>
+
+      {/* Starters */}
+      <div className="mb-3">
+        <div className="text-[10px] font-black text-blue-700 uppercase tracking-widest mb-1">Starters</div>
+        {starterIds.length > 0
+          ? starterIds.map((pid) => renderPlayer(pid, true))
+          : <div className="text-xs text-gray-400 italic">No starter data</div>
+        }
+      </div>
+
+      {/* Bench */}
+      <div>
+        <div className="text-[10px] font-black text-gray-500 uppercase tracking-widest mb-1">Bench</div>
+        {benchIds.length > 0
+          ? benchIds.map((pid) => renderPlayer(pid, false))
+          : <div className="text-xs text-gray-400 italic">No bench players</div>
+        }
+      </div>
+    </div>
+  );
+}
+
+function SeasonHistoryCard({ season, players }) {
   const [isOpen, setIsOpen] = useState(true); // expanded by default — v2
   const [week, setWeek] = useState(null);
+  const [openMatchup, setOpenMatchup] = useState(null); // index of expanded matchup, or null
 
   // Defensive defaults — never crash even if fields are missing
   const matchupsByWeek = season.matchupsByWeek || {};
@@ -1569,7 +1672,7 @@ function SeasonHistoryCard({ season }) {
               <h3 className="text-sm font-black text-gray-500 uppercase tracking-widest mb-3">Matchups</h3>
               <div className="flex gap-2 mb-4 overflow-x-auto pb-2">
                 {weekNumbers.map(w => (
-                  <button key={w} onClick={() => setWeek(w)}
+                  <button key={w} onClick={() => { setWeek(w); setOpenMatchup(null); }}
                     className={`px-3 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap transition-colors ${
                       w === activeWeek ? 'bg-blue-700 text-white' : 'bg-white text-gray-700 hover:bg-gray-100 border border-gray-200'
                     }`}>
@@ -1582,14 +1685,32 @@ function SeasonHistoryCard({ season }) {
                   if (!m.teamA || !m.teamB) return null;
                   const aWon = m.scoreA > m.scoreB;
                   const bWon = m.scoreB > m.scoreA;
+                  const isExpanded = openMatchup === i;
                   return (
-                    <div key={i} className="bg-white rounded-lg border border-gray-200 p-3">
+                    <button
+                      key={i}
+                      onClick={() => setOpenMatchup(isExpanded ? null : i)}
+                      className={`text-left bg-white rounded-lg border p-3 transition-all ${
+                        isExpanded ? 'border-blue-700 ring-2 ring-blue-100' : 'border-gray-200 hover:border-blue-300'
+                      }`}
+                    >
                       <MatchupColumnRow team={m.teamA} score={m.scoreA} won={aWon} />
                       <MatchupColumnRow team={m.teamB} score={m.scoreB} won={bWon} />
-                    </div>
+                      <div className="text-[10px] text-gray-400 font-bold uppercase tracking-widest mt-2 text-center">
+                        {isExpanded ? 'Hide lineups ▲' : 'View lineups ▼'}
+                      </div>
+                    </button>
                   );
                 })}
               </div>
+              {openMatchup != null && weekMatchups[openMatchup] && (
+                <div className="mt-4">
+                  <MatchupBreakdown
+                    matchup={weekMatchups[openMatchup]}
+                    players={players}
+                  />
+                </div>
+              )}
             </div>
           )}
           {weekNumbers.length === 0 && (
