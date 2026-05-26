@@ -55,7 +55,6 @@ const articles = [
     teamIds: [3, 5, 6],
   },
 ];
-
 // Articles sorted newest-first by date. Used across the site.
 const articlesByDate = [...articles].sort((a, b) => new Date(b.date) - new Date(a.date));
 
@@ -192,6 +191,21 @@ async function fetchPastSeason(leagueId) {
     }
   });
 
+  // Past-season transactions — flatten across all weeks, tag with week + season
+  const txnResults = await Promise.all(
+    weeks.map(w =>
+      fetch(`${SLEEPER_API}/league/${leagueId}/transactions/${w}`)
+        .then(r => r.json())
+        .catch(() => [])
+    )
+  );
+  const transactions = txnResults
+    .flatMap((weekTxns, i) =>
+      (weekTxns || []).map(t => ({ ...t, week: weeks[i], season: league.season }))
+    )
+    .filter(t => t && t.status === 'complete')
+    .sort((a, b) => (b.status_updated || 0) - (a.status_updated || 0));
+
   return {
     leagueId,
     season: league.season,
@@ -201,6 +215,7 @@ async function fetchPastSeason(leagueId) {
     champion,
     bracket,
     matchupsByWeek,
+    transactions,
   };
 }
 
@@ -1218,8 +1233,34 @@ function TransactionRow({ txn, teamByRoster, playerName, playerPos, formatDate, 
             </div>
           );
         })}
-        {Object.keys(adds).length === 0 && Object.keys(drops).length === 0 && (
-          <div className="text-sm text-gray-400">No player movement recorded.</div>
+        {/* Traded draft picks */}
+        {(txn.draft_picks || []).map((pick, i) => {
+          const fromTeam = teamByRoster[pick.previous_owner_id];
+          const toTeam = teamByRoster[pick.owner_id];
+          const roundLabel = (r) => {
+            if (r === 1) return '1st';
+            if (r === 2) return '2nd';
+            if (r === 3) return '3rd';
+            return `${r}th`;
+          };
+          return (
+            <div key={'pick' + i} className="flex items-center gap-2 text-sm">
+              <span className="text-purple-600 font-black">◆</span>
+              <span className="font-bold text-gray-900">
+                {pick.season} {roundLabel(pick.round)} Round Pick
+              </span>
+              {fromTeam && toTeam && (
+                <span className="text-gray-400 text-xs">
+                  <button onClick={() => goToTeam(fromTeam)} className="hover:text-blue-700">{fromTeam.name}</button>
+                  {' → '}
+                  <button onClick={() => goToTeam(toTeam)} className="hover:text-blue-700">{toTeam.name}</button>
+                </span>
+              )}
+            </div>
+          );
+        })}
+        {Object.keys(adds).length === 0 && Object.keys(drops).length === 0 && (txn.draft_picks || []).length === 0 && (
+          <div className="text-sm text-gray-400">No player or pick movement recorded.</div>
         )}
       </div>
     </div>
@@ -1325,7 +1366,6 @@ function ArticlePage({ articleId, data, setPage, setActiveTeam }) {
 // ============ HISTORY PAGE ============
 function HistoryPage({ data, setPage, setActiveTeam }) {
   const { history } = data;
-  const [openSeason, setOpenSeason] = useState(null); // leagueId of expanded season
 
   if (!history || history.length === 0) {
     return (
@@ -1348,12 +1388,7 @@ function HistoryPage({ data, setPage, setActiveTeam }) {
 
         <div className="space-y-6">
           {history.map(season => (
-            <SeasonHistoryCard
-              key={season.leagueId}
-              season={season}
-              isOpen={openSeason === season.leagueId}
-              onToggle={() => setOpenSeason(openSeason === season.leagueId ? null : season.leagueId)}
-            />
+            <SeasonHistoryCard key={season.leagueId} season={season} />
           ))}
         </div>
       </div>
@@ -1452,7 +1487,8 @@ function BracketSlot({ team, isWinner }) {
   );
 }
 
-function SeasonHistoryCard({ season, isOpen, onToggle }) {
+function SeasonHistoryCard({ season }) {
+  const [isOpen, setIsOpen] = useState(true); // expanded by default
   const [week, setWeek] = useState(null);
   const weekNumbers = Object.keys(season.matchupsByWeek || {}).map(Number).sort((a, b) => a - b);
   const activeWeek = week || weekNumbers[0];
@@ -1476,7 +1512,7 @@ function SeasonHistoryCard({ season, isOpen, onToggle }) {
             </div>
           )}
         </div>
-        <button onClick={onToggle} className="text-sm text-blue-700 font-bold hover:text-blue-900">
+        <button onClick={() => setIsOpen(!isOpen)} className="text-sm text-blue-700 font-bold hover:text-blue-900">
           {isOpen ? 'Hide details ▲' : 'Show details ▼'}
         </button>
       </div>
@@ -1735,22 +1771,41 @@ function PlayerPage({ playerId, data, setPage, setActiveTeam }) {
   // Draft pick info for this player (if any)
   const draftInfo = draftPicks?.[String(playerId)] || null;
 
-  // This player's transaction history in the league
-  const teamByRoster = {};
-  teams.forEach(t => { teamByRoster[t.rosterId] = t; });
-  const playerTransactions = (transactions || [])
-    .filter(txn => {
-      const adds = txn.adds || {};
-      const drops = txn.drops || {};
-      return adds[String(playerId)] != null || drops[String(playerId)] != null;
-    })
-    .map(txn => {
-      const adds = txn.adds || {};
-      const drops = txn.drops || {};
-      const addedTo = adds[String(playerId)] != null ? teamByRoster[adds[String(playerId)]] : null;
-      const droppedFrom = drops[String(playerId)] != null ? teamByRoster[drops[String(playerId)]] : null;
-      return { txn, addedTo, droppedFrom };
-    });
+  // This player's transaction history across the current + all past seasons.
+  // Each season has its own roster IDs, so we need a per-season team lookup.
+  const currentTeamByRoster = {};
+  teams.forEach(t => { currentTeamByRoster[t.rosterId] = t; });
+
+  const buildPlayerTxns = (txnList, teamLookup) =>
+    (txnList || [])
+      .filter(txn => {
+        const adds = txn.adds || {};
+        const drops = txn.drops || {};
+        return adds[String(playerId)] != null || drops[String(playerId)] != null;
+      })
+      .map(txn => {
+        const adds = txn.adds || {};
+        const drops = txn.drops || {};
+        const addedTo = adds[String(playerId)] != null ? teamLookup[adds[String(playerId)]] : null;
+        const droppedFrom = drops[String(playerId)] != null ? teamLookup[drops[String(playerId)]] : null;
+        return { txn, addedTo, droppedFrom };
+      });
+
+  // Current season transactions
+  const currentTxns = buildPlayerTxns(transactions, currentTeamByRoster).map(x => ({
+    ...x, txn: { ...x.txn, season: season }
+  }));
+
+  // Past-season transactions — each season has its own standings → roster lookup
+  const pastTxns = (history || []).flatMap(pastSeason => {
+    const lookup = {};
+    pastSeason.standings.forEach(t => { lookup[t.rosterId] = t; });
+    return buildPlayerTxns(pastSeason.transactions, lookup);
+  });
+
+  // Combined, newest-first
+  const playerTransactions = [...currentTxns, ...pastTxns]
+    .sort((a, b) => (b.txn.status_updated || 0) - (a.txn.status_updated || 0));
 
   // Convert height (Sleeper gives inches as a string sometimes) to ft-in
   const formatHeight = (h) => {
@@ -2031,12 +2086,15 @@ function PlayerPage({ playerId, data, setPage, setActiveTeam }) {
               League Transactions
             </h2>
             {playerTransactions.length === 0 ? (
-              <p className="text-gray-500 text-sm">No transactions involving this player this season.</p>
+              <p className="text-gray-500 text-sm">No transactions involving this player.</p>
             ) : (
               <div className="space-y-2">
                 {playerTransactions.map(({ txn, addedTo, droppedFrom }) => {
                   const TYPE_LABEL = { trade: 'TRADE', waiver: 'WAIVER', free_agent: 'FREE AGENT' };
                   const TYPE_COLOR = { trade: '#7C3AED', waiver: '#0F766E', free_agent: '#C2410C' };
+                  // Past-season team objects don't exist in current teams list,
+                  // so they're shown as plain text instead of clickable buttons.
+                  const isCurrentSeason = txn.season === season;
                   return (
                     <div key={txn.transaction_id} className="flex items-center gap-3 flex-wrap py-2 border-b border-gray-100 last:border-0">
                       <span
@@ -2045,27 +2103,37 @@ function PlayerPage({ playerId, data, setPage, setActiveTeam }) {
                       >
                         {TYPE_LABEL[txn.type] || (txn.type || 'MOVE').toUpperCase()}
                       </span>
-                      <span className="text-xs text-gray-400 font-semibold">Wk {txn.week} · {fmtDate(txn.status_updated)}</span>
+                      <span className="text-xs text-gray-400 font-semibold">
+                        {txn.season} · Wk {txn.week} · {fmtDate(txn.status_updated)}
+                      </span>
                       {addedTo && (
                         <span className="text-sm text-gray-700">
                           <span className="text-green-600 font-black">+</span> Added to{' '}
-                          <button
-                            onClick={() => { setActiveTeam(addedTo.id); setPage('TeamHub'); window.scrollTo(0, 0); }}
-                            className="font-bold text-gray-900 hover:text-blue-700"
-                          >
-                            {addedTo.name}
-                          </button>
+                          {isCurrentSeason ? (
+                            <button
+                              onClick={() => { setActiveTeam(addedTo.id); setPage('TeamHub'); window.scrollTo(0, 0); }}
+                              className="font-bold text-gray-900 hover:text-blue-700"
+                            >
+                              {addedTo.name}
+                            </button>
+                          ) : (
+                            <span className="font-bold text-gray-900">{addedTo.name}</span>
+                          )}
                         </span>
                       )}
                       {droppedFrom && (
                         <span className="text-sm text-gray-700">
                           <span className="text-red-600 font-black">−</span> Dropped from{' '}
-                          <button
-                            onClick={() => { setActiveTeam(droppedFrom.id); setPage('TeamHub'); window.scrollTo(0, 0); }}
-                            className="font-bold text-gray-900 hover:text-blue-700"
-                          >
-                            {droppedFrom.name}
-                          </button>
+                          {isCurrentSeason ? (
+                            <button
+                              onClick={() => { setActiveTeam(droppedFrom.id); setPage('TeamHub'); window.scrollTo(0, 0); }}
+                              className="font-bold text-gray-900 hover:text-blue-700"
+                            >
+                              {droppedFrom.name}
+                            </button>
+                          ) : (
+                            <span className="font-bold text-gray-900">{droppedFrom.name}</span>
+                          )}
                         </span>
                       )}
                     </div>
