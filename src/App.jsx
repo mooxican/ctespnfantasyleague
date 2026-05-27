@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, ReferenceLine } from 'recharts';
 
 // ============ SLEEPER LEAGUE CONFIG ============
 const LEAGUE_ID = '1312004917103185920';
@@ -28,6 +29,7 @@ const SCORE_OVERRIDES = [
   { season: '2025', week: 12, owner: 'QuixoteDrafting', score: 268.5 }, // Scranton Silly Gals — was 103.3
   { season: '2025', week: 13, owner: 'DomIsBored', score: 222.3 }, // Scranton Silly Gals — was 103.3
 ];
+
 // Helper: look up override for a (season, week, ownerName)
 function getOverrideScore(season, week, ownerName) {
   if (!season || !week || !ownerName) return null;
@@ -930,32 +932,120 @@ function TeamHistory({ team, history }) {
   );
 }
 
-function TeamOverview({ team }) {
+function TeamOverview({ team, teams, matchupsByWeek, currentWeek }) {
   const games = team.wins + team.losses + team.ties;
   const winPct = games ? (team.wins / games).toFixed(3) : '0.000';
   const avgPF = games ? (team.pointsFor / games).toFixed(1) : '0.0';
 
+  // Build week-by-week chart data for this team
+  const weeks = Object.keys(matchupsByWeek || {}).map(Number).sort((a, b) => a - b);
+  const chartData = weeks.map(w => {
+    const weekData = matchupsByWeek[w];
+    if (!weekData) return null;
+    const myEntry = weekData.find(m => m.roster_id === team.rosterId);
+    if (!myEntry) return null;
+    const oppEntry = weekData.find(m => m.matchup_id === myEntry.matchup_id && m.roster_id !== myEntry.roster_id);
+    const opp = oppEntry ? teams.find(t => t.rosterId === oppEntry.roster_id) : null;
+    const played = (myEntry.points || 0) > 0 || (oppEntry?.points || 0) > 0;
+    if (!played) return null;
+    const won = (myEntry.points || 0) > (oppEntry?.points || 0);
+    return {
+      week: `Wk ${w}`,
+      weekNum: w,
+      points: Number((myEntry.points || 0).toFixed(1)),
+      opponent: opp?.name || '—',
+      result: won ? 'W' : 'L',
+      oppPoints: Number((oppEntry?.points || 0).toFixed(1)),
+    };
+  }).filter(Boolean);
+
+  // Average line for visual reference
+  const avgLine = chartData.length > 0
+    ? chartData.reduce((sum, d) => sum + d.points, 0) / chartData.length
+    : 0;
+
   return (
-    <div className="grid lg:grid-cols-3 gap-6">
-      <div className="lg:col-span-2 space-y-6">
-        <div className="bg-white rounded-xl border border-gray-200 p-6">
-          <h2 className="text-xl font-display font-black text-gray-900 mb-4 uppercase tracking-tight">Team Info</h2>
-          <div className="grid grid-cols-2 gap-4">
-            <InfoStat label="Manager" value={team.owner} />
-            <InfoStat label="Roster ID" value={`#${team.rosterId}`} />
-            <InfoStat label="Avg PPG" value={avgPF} />
-            <InfoStat label="Win %" value={winPct} />
+    <div className="space-y-6">
+      <div className="grid lg:grid-cols-3 gap-6">
+        <div className="lg:col-span-2 space-y-6">
+          <div className="bg-white rounded-xl border border-gray-200 p-6">
+            <h2 className="text-xl font-display font-black text-gray-900 mb-4 uppercase tracking-tight">Team Info</h2>
+            <div className="grid grid-cols-2 gap-4">
+              <InfoStat label="Manager" value={team.owner} />
+              <InfoStat label="Roster ID" value={`#${team.rosterId}`} />
+              <InfoStat label="Avg PPG" value={avgPF} />
+              <InfoStat label="Win %" value={winPct} />
+            </div>
+          </div>
+          <div className="bg-white rounded-xl border border-gray-200 p-6">
+            <h2 className="text-xl font-display font-black text-gray-900 mb-4 uppercase tracking-tight">Season Stats</h2>
+            <div className="grid grid-cols-4 gap-4 text-center">
+              <BigStat label="Wins" value={team.wins} />
+              <BigStat label="Losses" value={team.losses} />
+              <BigStat label="PF" value={team.pointsFor.toFixed(0)} />
+              <BigStat label="PA" value={team.pointsAgainst.toFixed(0)} />
+            </div>
           </div>
         </div>
-        <div className="bg-white rounded-xl border border-gray-200 p-6">
-          <h2 className="text-xl font-display font-black text-gray-900 mb-4 uppercase tracking-tight">Season Stats</h2>
-          <div className="grid grid-cols-4 gap-4 text-center">
-            <BigStat label="Wins" value={team.wins} />
-            <BigStat label="Losses" value={team.losses} />
-            <BigStat label="PF" value={team.pointsFor.toFixed(0)} />
-            <BigStat label="PA" value={team.pointsAgainst.toFixed(0)} />
-          </div>
-        </div>
+      </div>
+
+      {/* Points over time */}
+      <div className="bg-white rounded-xl border border-gray-200 p-6">
+        <h2 className="text-xl font-display font-black text-gray-900 mb-4 uppercase tracking-tight">Weekly Scoring</h2>
+        {chartData.length === 0 ? (
+          <p className="text-sm text-gray-500">No game data yet this season.</p>
+        ) : (
+          <>
+            <div className="h-72 w-full">
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart data={chartData} margin={{ top: 10, right: 20, bottom: 10, left: 0 }}>
+                  <XAxis
+                    dataKey="week"
+                    tick={{ fontSize: 12, fill: '#6B7280', fontWeight: 700 }}
+                    axisLine={{ stroke: '#E5E7EB' }}
+                    tickLine={false}
+                  />
+                  <YAxis
+                    tick={{ fontSize: 12, fill: '#6B7280', fontWeight: 700 }}
+                    axisLine={{ stroke: '#E5E7EB' }}
+                    tickLine={false}
+                    width={40}
+                  />
+                  <Tooltip
+                    contentStyle={{
+                      backgroundColor: 'white',
+                      border: '1px solid #E5E7EB',
+                      borderRadius: '8px',
+                      fontSize: '13px',
+                    }}
+                    formatter={(value, name, props) => {
+                      const d = props.payload;
+                      return [
+                        `${value} pts (${d.result} vs ${d.opponent}, ${d.oppPoints})`,
+                        'Score',
+                      ];
+                    }}
+                  />
+                  <ReferenceLine
+                    y={avgLine}
+                    stroke="#9CA3AF"
+                    strokeDasharray="4 4"
+                    label={{ value: `Avg ${avgLine.toFixed(1)}`, position: 'right', fill: '#6B7280', fontSize: 11, fontWeight: 700 }}
+                  />
+                  <Line
+                    type="monotone"
+                    dataKey="points"
+                    stroke={team.primary}
+                    strokeWidth={3}
+                    dot={{ fill: team.primary, r: 5 }}
+                    activeDot={{ r: 7 }}
+                  />
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
+            <p className="text-xs text-gray-400 mt-2 text-center">Hover any point for opponent and result.</p>
+          </>
+        )}
       </div>
     </div>
   );
@@ -1892,6 +1982,94 @@ function PlayersPage({ data, openPlayer }) {
   );
 }
 
+// Generate "story" callouts from head-to-head data between two managers.
+// `h2h` is an array of past meetings from ownerA's perspective:
+//   { season, week, myPoints, oppPoints, oppTeam, ... }
+// Returns an array of { text, kind } objects ready to render as pills.
+function buildRivalryInsights(h2h, ownerA, ownerB, currentMatchupKey) {
+  const insights = [];
+
+  // 1. First meeting ever
+  if (h2h.length === 0) {
+    insights.push({ kind: 'first', text: 'First meeting ever in league history' });
+    return insights;
+  }
+
+  // 2. Recent streak — last 5 meetings (excluding the current one if it's in there)
+  const priorMeetings = h2h.filter(m =>
+    !(m.season === currentMatchupKey.season && m.week === currentMatchupKey.week)
+  );
+  const lastFive = priorMeetings.slice(-5);
+  if (lastFive.length >= 2) {
+    let aRecent = 0, bRecent = 0;
+    lastFive.forEach(m => {
+      if (m.myPoints > m.oppPoints) aRecent++;
+      else if (m.oppPoints > m.myPoints) bRecent++;
+    });
+    if (aRecent > bRecent && aRecent >= 2) {
+      insights.push({
+        kind: 'streak',
+        text: `${ownerA} has won ${aRecent} of the last ${lastFive.length} meetings`,
+      });
+    } else if (bRecent > aRecent && bRecent >= 2) {
+      insights.push({
+        kind: 'streak',
+        text: `${ownerB} has won ${bRecent} of the last ${lastFive.length} meetings`,
+      });
+    }
+  }
+
+  // 3. Highest combined score in this rivalry
+  if (priorMeetings.length >= 1) {
+    const withCombined = priorMeetings.map(m => ({
+      ...m,
+      combined: (m.myPoints || 0) + (m.oppPoints || 0),
+    }));
+    const top = withCombined.reduce((a, b) => (b.combined > a.combined ? b : a));
+    if (top.combined > 0) {
+      insights.push({
+        kind: 'record',
+        text: `Highest combined score: ${top.combined.toFixed(1)} (${top.season} Wk ${top.week})`,
+      });
+    }
+  }
+
+  // 4. Closest margin ever
+  if (priorMeetings.length >= 2) {
+    const closest = priorMeetings.reduce((a, b) => {
+      const am = Math.abs((a.myPoints || 0) - (a.oppPoints || 0));
+      const bm = Math.abs((b.myPoints || 0) - (b.oppPoints || 0));
+      return bm < am ? b : a;
+    });
+    const margin = Math.abs((closest.myPoints || 0) - (closest.oppPoints || 0));
+    if (margin > 0 && margin < 5) {
+      insights.push({
+        kind: 'close',
+        text: `Closest meeting was decided by ${margin.toFixed(1)} (${closest.season} Wk ${closest.week})`,
+      });
+    }
+  }
+
+  // 5. Biggest blowout
+  if (priorMeetings.length >= 2) {
+    const biggest = priorMeetings.reduce((a, b) => {
+      const am = Math.abs((a.myPoints || 0) - (a.oppPoints || 0));
+      const bm = Math.abs((b.myPoints || 0) - (b.oppPoints || 0));
+      return bm > am ? b : a;
+    });
+    const margin = Math.abs((biggest.myPoints || 0) - (biggest.oppPoints || 0));
+    if (margin >= 30) {
+      const winner = biggest.myPoints > biggest.oppPoints ? ownerA : ownerB;
+      insights.push({
+        kind: 'blowout',
+        text: `Biggest blowout: ${winner} by ${margin.toFixed(1)} (${biggest.season} Wk ${biggest.week})`,
+      });
+    }
+  }
+
+  return insights;
+}
+
 // ============ MATCHUP DETAIL PAGE ============
 // Helpers for matchup history. All operate on the merged set of:
 //   - current season's matchupsByWeek (data.matchupsByWeek)
@@ -2036,6 +2214,9 @@ function MatchupDetailPage({ matchupKey, data, setPage, setActiveTeam, openPlaye
     else ties++;
   });
 
+  // Rivalry callouts — auto-generated narrative bits from the h2h data
+  const insights = buildRivalryInsights(h2h, ownerA, ownerB, { season: matchSeason, week: matchWeek });
+
   // Navigate to a different matchup detail
   const openMatchupDetail = (m, perspectiveOwner) => {
     setPage('MatchupDetail');
@@ -2118,43 +2299,59 @@ function MatchupDetailPage({ matchupKey, data, setPage, setActiveTeam, openPlaye
           </div>
         </div>
 
-        {/* Head-to-head */}
-        {h2h.length > 0 && (
+        {/* Head-to-head + Rivalry insights */}
+        {(h2h.length > 0 || insights.length > 0) && (
           <div className="bg-white rounded-xl border border-gray-200 p-6">
-            <h2 className="text-sm font-black text-gray-500 uppercase tracking-widest mb-4">Head-to-Head ({h2h.length} {h2h.length === 1 ? 'meeting' : 'meetings'})</h2>
-            <div className="grid grid-cols-3 gap-4 mb-4 text-center">
-              <div>
-                <div className="text-3xl font-display font-black text-gray-900">{aWins}</div>
-                <div className="text-xs font-bold text-gray-500 uppercase tracking-widest mt-1">{teamA.owner} Wins</div>
+            <h2 className="text-sm font-black text-gray-500 uppercase tracking-widest mb-4">
+              Head-to-Head{h2h.length > 0 && ` (${h2h.length} ${h2h.length === 1 ? 'meeting' : 'meetings'})`}
+            </h2>
+
+            {/* Rivalry insights — narrative pills */}
+            {insights.length > 0 && (
+              <div className="flex flex-wrap gap-2 mb-4">
+                {insights.map((ins, i) => (
+                  <RivalryPill key={i} insight={ins} />
+                ))}
               </div>
-              <div>
-                <div className="text-3xl font-display font-black text-gray-400">{ties}</div>
-                <div className="text-xs font-bold text-gray-500 uppercase tracking-widest mt-1">Ties</div>
-              </div>
-              <div>
-                <div className="text-3xl font-display font-black text-gray-900">{bWins}</div>
-                <div className="text-xs font-bold text-gray-500 uppercase tracking-widest mt-1">{teamB.owner} Wins</div>
-              </div>
-            </div>
-            <div className="space-y-1 border-t border-gray-100 pt-3">
-              {[...h2h].reverse().map((m, i) => {
-                const isThisOne = m.season === matchSeason && m.week === matchWeek;
-                const aMore = m.myPoints > m.oppPoints;
-                return (
-                  <div
-                    key={i}
-                    className={`flex items-center gap-2 py-1.5 text-sm ${isThisOne ? 'bg-blue-50 rounded-lg px-2 -mx-2' : ''}`}
-                  >
-                    <span className="text-xs text-gray-400 font-bold w-20 shrink-0">{m.season} · Wk {m.week}</span>
-                    <span className={`font-bold text-right flex-1 truncate ${aMore ? 'text-gray-900' : 'text-gray-500'}`}>{teamA.name}</span>
-                    <span className={`font-display font-black w-12 text-right ${aMore ? 'text-gray-900' : 'text-gray-400'}`}>{m.myPoints?.toFixed(1)}</span>
-                    <span className="text-gray-300">·</span>
-                    <span className={`font-display font-black w-12 ${!aMore ? 'text-gray-900' : 'text-gray-400'}`}>{m.oppPoints?.toFixed(1)}</span>
-                    <span className={`font-bold flex-1 truncate ${!aMore ? 'text-gray-900' : 'text-gray-500'}`}>{teamB.name}</span>
+            )}
+
+            {h2h.length > 0 && (
+              <>
+                <div className="grid grid-cols-3 gap-4 mb-4 text-center">
+                  <div>
+                    <div className="text-3xl font-display font-black text-gray-900">{aWins}</div>
+                    <div className="text-xs font-bold text-gray-500 uppercase tracking-widest mt-1">{teamA.owner} Wins</div>
                   </div>
-                );
-              })}
-            </div>
+                  <div>
+                    <div className="text-3xl font-display font-black text-gray-400">{ties}</div>
+                    <div className="text-xs font-bold text-gray-500 uppercase tracking-widest mt-1">Ties</div>
+                  </div>
+                  <div>
+                    <div className="text-3xl font-display font-black text-gray-900">{bWins}</div>
+                    <div className="text-xs font-bold text-gray-500 uppercase tracking-widest mt-1">{teamB.owner} Wins</div>
+                  </div>
+                </div>
+                <div className="space-y-1 border-t border-gray-100 pt-3">
+                  {[...h2h].reverse().map((m, i) => {
+                    const isThisOne = m.season === matchSeason && m.week === matchWeek;
+                    const aMore = m.myPoints > m.oppPoints;
+                    return (
+                      <div
+                        key={i}
+                        className={`flex items-center gap-2 py-1.5 text-sm ${isThisOne ? 'bg-blue-50 rounded-lg px-2 -mx-2' : ''}`}
+                      >
+                        <span className="text-xs text-gray-400 font-bold w-20 shrink-0">{m.season} · Wk {m.week}</span>
+                        <span className={`font-bold text-right flex-1 truncate ${aMore ? 'text-gray-900' : 'text-gray-500'}`}>{teamA.name}</span>
+                        <span className={`font-display font-black w-12 text-right ${aMore ? 'text-gray-900' : 'text-gray-400'}`}>{m.myPoints?.toFixed(1)}</span>
+                        <span className="text-gray-300">·</span>
+                        <span className={`font-display font-black w-12 ${!aMore ? 'text-gray-900' : 'text-gray-400'}`}>{m.oppPoints?.toFixed(1)}</span>
+                        <span className={`font-bold flex-1 truncate ${!aMore ? 'text-gray-900' : 'text-gray-500'}`}>{teamB.name}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </>
+            )}
           </div>
         )}
 
@@ -2186,6 +2383,23 @@ function ComparisonRow({ left, label, right }) {
       <div className="text-center text-xs font-bold text-gray-500 uppercase tracking-widest self-center px-4">{label}</div>
       <div className="text-left font-display font-black text-gray-900 text-lg">{right}</div>
     </>
+  );
+}
+
+function RivalryPill({ insight }) {
+  const STYLES = {
+    first:   { bg: 'bg-amber-50',  text: 'text-amber-800',  icon: '★' },
+    streak:  { bg: 'bg-blue-50',   text: 'text-blue-800',   icon: '↗' },
+    record:  { bg: 'bg-purple-50', text: 'text-purple-800', icon: '◆' },
+    close:   { bg: 'bg-green-50',  text: 'text-green-800',  icon: '~' },
+    blowout: { bg: 'bg-red-50',    text: 'text-red-800',    icon: '!' },
+  };
+  const style = STYLES[insight.kind] || { bg: 'bg-gray-50', text: 'text-gray-700', icon: '·' };
+  return (
+    <span className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold ${style.bg} ${style.text}`}>
+      <span className="font-black">{style.icon}</span>
+      {insight.text}
+    </span>
   );
 }
 
