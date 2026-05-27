@@ -88,6 +88,7 @@ const articles = [
     teamIds: [3, 5, 6],
   },
 ];
+
 // Articles sorted newest-first by date. Used across the site.
 const articlesByDate = [...articles].sort((a, b) => new Date(b.date) - new Date(a.date));
 
