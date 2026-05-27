@@ -6,6 +6,41 @@ const SLEEPER_API = 'https://api.sleeper.app/v1';
 const SLEEPER_STATS_API = 'https://api.sleeper.com'; // stats live on a different host
 const SLEEPER_CDN = 'https://sleepercdn.com';
 
+// ============================================================
+//  SCORE OVERRIDES — fix commissioner-adjusted scores manually
+// ------------------------------------------------------------
+//  Sleeper's public API returns the raw auto-calculated score and
+//  does NOT include commissioner score adjustments. List those here.
+//
+//  Each override is: { season, week, owner, score }
+//    - `season` and `week` are numbers (e.g. 2025, 1)
+//    - `owner` is the manager's Sleeper display name (case-sensitive),
+//      same as what shows up under the team name on the standings
+//    - `score` is the corrected score
+//
+//  When a matchup renders, the site checks this list first and uses
+//  the override if it finds one. Otherwise it uses the API value.
+// ============================================================
+const SCORE_OVERRIDES = [
+  { season: '2025', week: 1, owner: 'ANormalPrussian', score: 203.3 }, // Scranton Silly Gals — was 103.3
+];
+  { season: '2025', week: 3, owner: 'StatenIsland18', score: 240.7 }, // Scranton Silly Gals — was 103.3
+];
+  { season: '2025', week: 6, owner: 'Rlcchamp', score: 240.6 }, // Scranton Silly Gals — was 103.3
+];
+  { season: '2025', week: 12, owner: 'QuixoteDrafting', score: 268.5 }, // Scranton Silly Gals — was 103.3
+];
+  { season: '2025', week: 13, owner: 'DomIsBored', score: 222.3 }, // Scranton Silly Gals — was 103.3
+];
+// Helper: look up override for a (season, week, ownerName)
+function getOverrideScore(season, week, ownerName) {
+  if (!season || !week || !ownerName) return null;
+  const match = SCORE_OVERRIDES.find(
+    o => String(o.season) === String(season) && Number(o.week) === Number(week) && o.owner === ownerName
+  );
+  return match ? match.score : null;
+}
+
 // ============ SITE LOGO ============
 // Set this to your logo. Two ways:
 //   1. A URL:  'https://example.com/my-logo.png'
@@ -185,10 +220,20 @@ async function fetchPastSeason(leagueId) {
         .catch(() => [])
     )
   );
+
+  // Build roster_id -> owner name map so we can apply score overrides
+  const rosterIdToOwner = {};
+  standings.forEach(t => { rosterIdToOwner[t.rosterId] = t.owner; });
+
   const matchupsByWeek = {};
   weeks.forEach((w, i) => {
     if (Array.isArray(matchupResults[i]) && matchupResults[i].length) {
-      matchupsByWeek[w] = matchupResults[i];
+      // Apply any score overrides for this (season, week, owner)
+      matchupsByWeek[w] = matchupResults[i].map(m => {
+        const owner = rosterIdToOwner[m.roster_id];
+        const override = getOverrideScore(league.season, w, owner);
+        return override != null ? { ...m, points: override } : m;
+      });
     }
   });
 
@@ -267,8 +312,24 @@ function useLeagueData() {
         const matchupResults = await Promise.all(
           weeksToFetch.map(w => fetch(`${SLEEPER_API}/league/${LEAGUE_ID}/matchups/${w}`).then(r => r.json()))
         );
+
+        // Build roster_id -> owner map for the current season so we can apply overrides
+        const currentRosterIdToOwner = {};
+        teams.forEach(t => { currentRosterIdToOwner[t.rosterId] = t.owner; });
+
         const matchupsByWeek = {};
-        weeksToFetch.forEach((w, i) => { matchupsByWeek[w] = matchupResults[i]; });
+        weeksToFetch.forEach((w, i) => {
+          const raw = matchupResults[i];
+          if (!Array.isArray(raw)) {
+            matchupsByWeek[w] = raw;
+            return;
+          }
+          matchupsByWeek[w] = raw.map(m => {
+            const owner = currentRosterIdToOwner[m.roster_id];
+            const override = getOverrideScore(season, w, owner);
+            return override != null ? { ...m, points: override } : m;
+          });
+        });
 
         // Fetch transactions for every week, flatten into one list.
         // Tag each with its week (the fetch index) so we can group later.
@@ -1887,7 +1948,7 @@ function collectAllMatchupsForOwner(ownerName, data) {
       // Could be a bye or future game; still capture if it has a matchup_id pair
     }
     const oppEntry = weekMatchups.find(
-      m => m.matchup_id === myEntry.matchup_id && m.roster_id !== myEntry.rosterId
+      m => m.matchup_id === myEntry.matchup_id && m.roster_id !== myEntry.roster_id
     );
     if (!oppEntry) return;
     const oppTeam = standings.find(t => t.rosterId === oppEntry.roster_id);
