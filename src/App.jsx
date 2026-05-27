@@ -77,6 +77,7 @@ const TEAM_COLORS = [
 //               "Roster ID #X" on each team's Overview tab. Use [] for none.
 // ============================================================
 const articles = [
+const articles = [
   {
     id: 1,
   date: '2026-05-14',
@@ -1654,7 +1655,7 @@ function BracketSlot({ team, isWinner }) {
 }
 
 // Detailed matchup breakdown showing both teams' starters + bench with per-player points
-function MatchupBreakdown({ matchup, players }) {
+function MatchupBreakdown({ matchup, players, openPlayer }) {
   const { teamA, teamB, scoreA, scoreB, rawA, rawB } = matchup;
   if (!rawA || !rawB) {
     return (
@@ -1667,14 +1668,14 @@ function MatchupBreakdown({ matchup, players }) {
   return (
     <div className="bg-white rounded-xl border border-blue-200 overflow-hidden">
       <div className="grid grid-cols-1 md:grid-cols-2 divide-y md:divide-y-0 md:divide-x divide-gray-100">
-        <TeamLineup team={teamA} raw={rawA} score={scoreA} players={players} won={scoreA > scoreB} />
-        <TeamLineup team={teamB} raw={rawB} score={scoreB} players={players} won={scoreB > scoreA} />
+        <TeamLineup team={teamA} raw={rawA} score={scoreA} players={players} won={scoreA > scoreB} openPlayer={openPlayer} />
+        <TeamLineup team={teamB} raw={rawB} score={scoreB} players={players} won={scoreB > scoreA} openPlayer={openPlayer} />
       </div>
     </div>
   );
 }
 
-function TeamLineup({ team, raw, score, players, won }) {
+function TeamLineup({ team, raw, score, players, won, openPlayer }) {
   const starterIds = raw.starters || [];
   const allIds = raw.players || [];
   const pointsMap = raw.players_points || {};
@@ -1698,22 +1699,31 @@ function TeamLineup({ team, raw, score, players, won }) {
       );
     }
     const pts = pointsMap[pid];
+    const knownPlayer = players[pid] != null;
+    const handleClick = knownPlayer && openPlayer ? () => openPlayer(pid) : undefined;
+    const Wrapper = handleClick ? 'button' : 'div';
     return (
-      <div key={pid} className="flex items-center justify-between py-1.5 text-sm">
+      <Wrapper
+        key={pid}
+        onClick={handleClick}
+        className={`w-full flex items-center justify-between py-1.5 px-1.5 -mx-1.5 text-sm rounded ${
+          handleClick ? 'hover:bg-blue-50 cursor-pointer transition-colors text-left' : ''
+        }`}
+      >
         <div className="flex items-center gap-2 min-w-0">
           {playerPos(pid) && (
             <span className="text-[10px] font-black text-gray-500 bg-gray-100 px-1.5 py-0.5 rounded shrink-0 w-9 text-center">
               {playerPos(pid)}
             </span>
           )}
-          <span className={`truncate ${isStarter ? 'font-bold text-gray-900' : 'text-gray-600'}`}>
+          <span className={`truncate ${isStarter ? 'font-bold text-gray-900' : 'text-gray-600'} ${handleClick ? 'hover:text-blue-700' : ''}`}>
             {playerName(pid)}
           </span>
         </div>
         <span className={`font-display font-black ml-2 shrink-0 ${isStarter ? 'text-gray-900' : 'text-gray-400'}`}>
           {pts != null ? pts.toFixed(1) : '—'}
         </span>
-      </div>
+      </Wrapper>
     );
   };
 
@@ -2368,6 +2378,7 @@ function MatchupDetailPage({ matchupKey, data, setPage, setActiveTeam, openPlaye
             <MatchupBreakdown
               matchup={{ teamA, teamB, scoreA, scoreB, rawA, rawB }}
               players={data.players}
+              openPlayer={openPlayer}
             />
           </div>
         )}
