@@ -76,7 +76,6 @@ const TEAM_COLORS = [
 //               Find a team's id: it's the roster_id, shown as
 //               "Roster ID #X" on each team's Overview tab. Use [] for none.
 // ============================================================
-
 const articles = [
   {
     id: 1,
@@ -89,7 +88,6 @@ const articles = [
     teamIds: [3, 5, 6],
   },
 ];
-
 // Articles sorted newest-first by date. Used across the site.
 const articlesByDate = [...articles].sort((a, b) => new Date(b.date) - new Date(a.date));
 
@@ -2456,9 +2454,34 @@ function FormCard({ team, games, openMatchup }) {
   );
 }
 
+// Headshot for the player banner. Uses Sleeper's CDN.
+// For team defenses, falls back to the team logo. Includes an onError handler
+// so missing headshots gracefully hide instead of showing a broken image.
+function PlayerHeadshot({ player, playerId }) {
+  const [failed, setFailed] = useState(false);
+  if (!player || failed) return null;
+
+  const isDef = player.position === 'DEF';
+  const src = isDef
+    ? `${SLEEPER_CDN}/images/team_logos/nfl/${String(playerId).toLowerCase()}.png`
+    : `${SLEEPER_CDN}/content/nfl/players/${playerId}.jpg`;
+
+  return (
+    <div className="hidden sm:block shrink-0 relative">
+      <div className="absolute inset-0 bg-white/10 rounded-full blur-2xl" />
+      <img
+        src={src}
+        alt=""
+        onError={() => setFailed(true)}
+        className={`relative w-32 h-32 sm:w-40 sm:h-40 rounded-full bg-white/10 ${isDef ? 'object-contain p-3' : 'object-cover'} border-4 border-white/20 shadow-2xl`}
+      />
+    </div>
+  );
+}
+
 // ============ PLAYER PAGE ============
 function PlayerPage({ playerId, data, setPage, setActiveTeam }) {
-  const { players, teams, season, transactions, history, draftPicks } = data;
+  const { players, teams, season, transactions, history, draftPicks, matchupsByWeek } = data;
   const player = players[playerId];
 
   // Which tab is showing
@@ -2562,6 +2585,61 @@ function PlayerPage({ playerId, data, setPage, setActiveTeam }) {
   const playerTransactions = [...currentTxns, ...pastTxns]
     .sort((a, b) => (b.txn.status_updated || 0) - (a.txn.status_updated || 0));
 
+  // Fantasy starter stats — walk every week of every season and check if
+  // this player was in someone's starting lineup. Build per-game records.
+  const pidStr = String(playerId);
+  const starterGames = []; // { season, week, points, teamName }
+
+  // Helper to scan a single season's matchupsByWeek
+  const scanSeason = (mbw, seasonLabel, standings) => {
+    if (!mbw) return;
+    const rosterIdToTeam = {};
+    (standings || []).forEach(t => { rosterIdToTeam[t.rosterId] = t; });
+    Object.entries(mbw).forEach(([w, weekMatchups]) => {
+      (weekMatchups || []).forEach(m => {
+        const starters = m.starters || [];
+        if (!starters.includes(pidStr)) return;
+        const points = (m.players_points || {})[pidStr];
+        // Only count played weeks (some weeks may have 0 if game not started)
+        if (points == null) return;
+        const ownerTeam = rosterIdToTeam[m.roster_id];
+        starterGames.push({
+          season: seasonLabel,
+          week: Number(w),
+          points,
+          teamName: ownerTeam?.name || `Team ${m.roster_id}`,
+        });
+      });
+    });
+  };
+
+  scanSeason(matchupsByWeek, season, teams);
+  (history || []).forEach(s => scanSeason(s.matchupsByWeek, s.season, s.standings));
+
+  // Sort chronologically (oldest first) so the chart reads left-to-right
+  starterGames.sort((a, b) => {
+    if (a.season !== b.season) return String(a.season).localeCompare(String(b.season));
+    return a.week - b.week;
+  });
+
+  // Aggregate metrics
+  const playedGames = starterGames.filter(g => g.points !== 0 || g.points === 0);
+  // Filter out weeks with literally zero — those are often unplayed/bye
+  const realGames = starterGames.filter(g => g.points > 0);
+  const totalStarterPts = realGames.reduce((sum, g) => sum + g.points, 0);
+  const avgStarterPts = realGames.length > 0 ? totalStarterPts / realGames.length : 0;
+  const bestGame = realGames.length > 0 ? realGames.reduce((a, b) => b.points > a.points ? b : a) : null;
+  const worstGame = realGames.length > 0 ? realGames.reduce((a, b) => b.points < a.points ? b : a) : null;
+
+  // Current-season-only chart data
+  const currentSeasonGames = starterGames.filter(g => String(g.season) === String(season));
+  const chartData = currentSeasonGames
+    .filter(g => g.points > 0)
+    .map(g => ({ week: `Wk ${g.week}`, points: Number(g.points.toFixed(1)) }));
+  const chartAvg = chartData.length > 0
+    ? chartData.reduce((s, d) => s + d.points, 0) / chartData.length
+    : 0;
+
   // Convert height (Sleeper gives inches as a string sometimes) to ft-in
   const formatHeight = (h) => {
     if (!h) return '—';
@@ -2657,17 +2735,22 @@ function PlayerPage({ playerId, data, setPage, setActiveTeam }) {
           <button onClick={() => setPage('Teams')} className="text-white/80 hover:text-white text-sm font-bold mb-4">
             ← Back to Teams
           </button>
-          <div className="text-white/80 font-semibold text-sm">
-            {player.position}{player.team ? ` · ${player.team}` : ''}
+          <div className="flex items-end gap-6">
+            <div className="flex-1 min-w-0">
+              <div className="text-white/80 font-semibold text-sm">
+                {player.position}{player.team ? ` · ${player.team}` : ''}
+              </div>
+              <h1 className="text-4xl sm:text-6xl font-display font-black text-white tracking-tight leading-tight">
+                {name}
+              </h1>
+              {player.injury_status && (
+                <span className="inline-block mt-3 px-2.5 py-1 bg-red-600 text-white text-xs font-black rounded uppercase tracking-wider">
+                  {player.injury_status}
+                </span>
+              )}
+            </div>
+            <PlayerHeadshot player={player} playerId={playerId} />
           </div>
-          <h1 className="text-4xl sm:text-6xl font-display font-black text-white tracking-tight leading-tight">
-            {name}
-          </h1>
-          {player.injury_status && (
-            <span className="inline-block mt-3 px-2.5 py-1 bg-red-600 text-white text-xs font-black rounded uppercase tracking-wider">
-              {player.injury_status}
-            </span>
-          )}
         </div>
       </div>
 
@@ -2744,44 +2827,136 @@ function PlayerPage({ playerId, data, setPage, setActiveTeam }) {
 
         {/* ===== STATS TAB ===== */}
         {tab === 'Stats' && (
-          <div className="bg-white rounded-xl border border-gray-200 p-6">
-            <h2 className="text-xl font-display font-black text-gray-900 mb-4 uppercase tracking-tight">
-              {season} Season Stats
-            </h2>
-            {stats.loading ? (
-              <div className="flex items-center gap-3 text-gray-500 text-sm">
-                <div className="w-4 h-4 border-2 border-blue-700 border-t-transparent rounded-full animate-spin" />
-                Loading stats…
-              </div>
-            ) : stats.error ? (
-              <p className="text-gray-500 text-sm">Stats couldn't be loaded right now.</p>
-            ) : !stats.data ? (
-              <p className="text-gray-500 text-sm">No stats recorded for this player this season.</p>
-            ) : (
-              <>
-                <div className="flex flex-wrap gap-3 mb-5">
-                  <div className="bg-blue-700 text-white rounded-lg px-5 py-3">
-                    <div className="text-3xl font-display font-black">{fmtNum(stats.data.pts_ppr)}</div>
-                    <div className="text-xs font-bold uppercase tracking-widest text-blue-100">Fantasy Pts (PPR)</div>
-                  </div>
-                  <div className="bg-gray-100 rounded-lg px-5 py-3">
-                    <div className="text-3xl font-display font-black text-gray-900">{fmtNum(stats.data.pts_half_ppr)}</div>
-                    <div className="text-xs font-bold uppercase tracking-widest text-gray-500">Half-PPR</div>
-                  </div>
-                  <div className="bg-gray-100 rounded-lg px-5 py-3">
-                    <div className="text-3xl font-display font-black text-gray-900">{fmtNum(stats.data.pts_std)}</div>
-                    <div className="text-xs font-bold uppercase tracking-widest text-gray-500">Standard</div>
-                  </div>
+          <div className="space-y-6">
+            {/* NFL Season Stats */}
+            <div className="bg-white rounded-xl border border-gray-200 p-6">
+              <h2 className="text-xl font-display font-black text-gray-900 mb-4 uppercase tracking-tight">
+                {season} Season Stats
+              </h2>
+              {stats.loading ? (
+                <div className="flex items-center gap-3 text-gray-500 text-sm">
+                  <div className="w-4 h-4 border-2 border-blue-700 border-t-transparent rounded-full animate-spin" />
+                  Loading stats…
                 </div>
-                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
-                  {statSet.map(s => (
-                    <div key={s.key} className="text-center">
-                      <div className="text-3xl font-display font-black text-gray-900">{fmtNum(stats.data[s.key])}</div>
-                      <div className="text-xs font-bold text-gray-500 uppercase tracking-widest mt-1">{s.label}</div>
+              ) : stats.error ? (
+                <p className="text-gray-500 text-sm">Stats couldn't be loaded right now.</p>
+              ) : !stats.data ? (
+                <p className="text-gray-500 text-sm">No stats recorded for this player this season.</p>
+              ) : (
+                <>
+                  <div className="flex flex-wrap gap-3 mb-5">
+                    <div className="bg-blue-700 text-white rounded-lg px-5 py-3">
+                      <div className="text-3xl font-display font-black">{fmtNum(stats.data.pts_ppr)}</div>
+                      <div className="text-xs font-bold uppercase tracking-widest text-blue-100">Fantasy Pts (PPR)</div>
                     </div>
-                  ))}
+                    <div className="bg-gray-100 rounded-lg px-5 py-3">
+                      <div className="text-3xl font-display font-black text-gray-900">{fmtNum(stats.data.pts_half_ppr)}</div>
+                      <div className="text-xs font-bold uppercase tracking-widest text-gray-500">Half-PPR</div>
+                    </div>
+                    <div className="bg-gray-100 rounded-lg px-5 py-3">
+                      <div className="text-3xl font-display font-black text-gray-900">{fmtNum(stats.data.pts_std)}</div>
+                      <div className="text-xs font-bold uppercase tracking-widest text-gray-500">Standard</div>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
+                    {statSet.map(s => (
+                      <div key={s.key} className="text-center">
+                        <div className="text-3xl font-display font-black text-gray-900">{fmtNum(stats.data[s.key])}</div>
+                        <div className="text-xs font-bold text-gray-500 uppercase tracking-widest mt-1">{s.label}</div>
+                      </div>
+                    ))}
+                  </div>
+                </>
+              )}
+            </div>
+
+            {/* Fantasy Starter Stats — only if they've ever started */}
+            {realGames.length > 0 && (
+              <div className="bg-white rounded-xl border border-gray-200 p-6">
+                <h2 className="text-xl font-display font-black text-gray-900 mb-1 uppercase tracking-tight">
+                  Fantasy Starter Stats
+                </h2>
+                <p className="text-xs text-gray-500 mb-4">
+                  Performance in weeks when this player was in a starting lineup (across all seasons).
+                </p>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-4">
+                  <div className="text-center">
+                    <div className="text-3xl font-display font-black text-gray-900">{realGames.length}</div>
+                    <div className="text-xs font-bold text-gray-500 uppercase tracking-widest mt-1">Games Started</div>
+                  </div>
+                  <div className="text-center">
+                    <div className="text-3xl font-display font-black text-gray-900">{totalStarterPts.toFixed(1)}</div>
+                    <div className="text-xs font-bold text-gray-500 uppercase tracking-widest mt-1">Total Pts</div>
+                  </div>
+                  <div className="text-center">
+                    <div className="text-3xl font-display font-black text-blue-700">{avgStarterPts.toFixed(1)}</div>
+                    <div className="text-xs font-bold text-gray-500 uppercase tracking-widest mt-1">Avg / Start</div>
+                  </div>
+                  <div className="text-center">
+                    <div className="text-3xl font-display font-black text-gray-900">{bestGame ? bestGame.points.toFixed(1) : '—'}</div>
+                    <div className="text-xs font-bold text-gray-500 uppercase tracking-widest mt-1">Best Week</div>
+                  </div>
                 </div>
-              </>
+                {bestGame && worstGame && (
+                  <div className="grid sm:grid-cols-2 gap-3 mt-2 pt-4 border-t border-gray-100">
+                    <div className="flex items-center justify-between text-sm bg-green-50 rounded-lg px-3 py-2">
+                      <span className="text-xs font-black text-green-700 uppercase tracking-widest">Best</span>
+                      <span className="text-gray-700 truncate mx-2">{bestGame.season} Wk {bestGame.week} · {bestGame.teamName}</span>
+                      <span className="font-display font-black text-green-700">{bestGame.points.toFixed(1)}</span>
+                    </div>
+                    <div className="flex items-center justify-between text-sm bg-red-50 rounded-lg px-3 py-2">
+                      <span className="text-xs font-black text-red-700 uppercase tracking-widest">Worst</span>
+                      <span className="text-gray-700 truncate mx-2">{worstGame.season} Wk {worstGame.week} · {worstGame.teamName}</span>
+                      <span className="font-display font-black text-red-700">{worstGame.points.toFixed(1)}</span>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Weekly Scoring chart (current season) */}
+            {chartData.length > 0 && (
+              <div className="bg-white rounded-xl border border-gray-200 p-6">
+                <h2 className="text-xl font-display font-black text-gray-900 mb-4 uppercase tracking-tight">
+                  Weekly Scoring — {season}
+                </h2>
+                <div className="h-64 w-full">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <LineChart data={chartData} margin={{ top: 10, right: 20, bottom: 10, left: 0 }}>
+                      <XAxis
+                        dataKey="week"
+                        tick={{ fontSize: 12, fill: '#6B7280', fontWeight: 700 }}
+                        axisLine={{ stroke: '#E5E7EB' }}
+                        tickLine={false}
+                      />
+                      <YAxis
+                        tick={{ fontSize: 12, fill: '#6B7280', fontWeight: 700 }}
+                        axisLine={{ stroke: '#E5E7EB' }}
+                        tickLine={false}
+                        width={40}
+                      />
+                      <Tooltip
+                        contentStyle={{ backgroundColor: 'white', border: '1px solid #E5E7EB', borderRadius: '8px', fontSize: '13px' }}
+                        formatter={(value) => [`${value} pts`, 'Score']}
+                      />
+                      <ReferenceLine
+                        y={chartAvg}
+                        stroke="#9CA3AF"
+                        strokeDasharray="4 4"
+                        label={{ value: `Avg ${chartAvg.toFixed(1)}`, position: 'right', fill: '#6B7280', fontSize: 11, fontWeight: 700 }}
+                      />
+                      <Line
+                        type="monotone"
+                        dataKey="points"
+                        stroke={accent}
+                        strokeWidth={3}
+                        dot={{ fill: accent, r: 5 }}
+                        activeDot={{ r: 7 }}
+                      />
+                    </LineChart>
+                  </ResponsiveContainer>
+                </div>
+              </div>
             )}
           </div>
         )}
