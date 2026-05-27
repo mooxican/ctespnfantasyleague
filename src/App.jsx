@@ -76,7 +76,7 @@ const TEAM_COLORS = [
 //               Find a team's id: it's the roster_id, shown as
 //               "Roster ID #X" on each team's Overview tab. Use [] for none.
 // ============================================================
-const articles = [
+
 const articles = [
   {
     id: 1,
