@@ -23,13 +23,9 @@ const SLEEPER_CDN = 'https://sleepercdn.com';
 // ============================================================
 const SCORE_OVERRIDES = [
   { season: '2025', week: 1, owner: 'ANormalPrussian', score: 203.3 }, // Scranton Silly Gals — was 103.3
-];
   { season: '2025', week: 3, owner: 'StatenIsland18', score: 240.7 }, // Scranton Silly Gals — was 103.3
-];
   { season: '2025', week: 6, owner: 'Rlcchamp', score: 240.6 }, // Scranton Silly Gals — was 103.3
-];
   { season: '2025', week: 12, owner: 'QuixoteDrafting', score: 268.5 }, // Scranton Silly Gals — was 103.3
-];
   { season: '2025', week: 13, owner: 'DomIsBored', score: 222.3 }, // Scranton Silly Gals — was 103.3
 ];
 // Helper: look up override for a (season, week, ownerName)
