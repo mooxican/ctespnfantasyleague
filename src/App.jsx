@@ -449,7 +449,7 @@ function pairMatchups(weekMatchups, teams) {
 // ============ NAVBAR ============
 function Navbar({ currentPage, setPage }) {
   const [menuOpen, setMenuOpen] = useState(false);
-  const links = ['Home', 'Matchups', 'News', 'Teams', 'Players', 'Standings', 'Transactions', 'History'];
+  const links = ['Home', 'Matchups', 'News', 'Teams', 'Players', 'Standings', 'Transactions', 'History', 'Records'];
 
   return (
     <nav className="bg-white border-b border-gray-200 sticky top-0 z-50 shadow-sm">
@@ -1529,6 +1529,294 @@ function ArticlePage({ articleId, data, setPage, setActiveTeam }) {
   );
 }
 
+// ============ RECORDS / HALL OF FAME PAGE ============
+function RecordsPage({ data, setPage, setActiveTeam, openMatchup }) {
+  const { teams, history, matchupsByWeek, season } = data;
+
+  // Helper: navigate to a manager's current team hub (matched by owner display name)
+  const goToTeam = (ownerName) => {
+    const t = teams.find(t => t.owner === ownerName);
+    if (t) {
+      setActiveTeam(t.id);
+      setPage('TeamHub');
+      window.scrollTo(0, 0);
+    }
+  };
+
+  // Build a unified list of every played matchup across all seasons.
+  // Each entry: { season, week, ownerA, ownerB, teamAName, teamBName, scoreA, scoreB }
+  const allMeetings = [];
+  const scanSeason = (mbw, seasonLabel, standings) => {
+    if (!mbw || !standings) return;
+    const byRoster = {};
+    standings.forEach(t => { byRoster[t.rosterId] = t; });
+    Object.entries(mbw).forEach(([w, weekMatchups]) => {
+      // Group by matchup_id
+      const groups = {};
+      (weekMatchups || []).forEach(m => {
+        if (!groups[m.matchup_id]) groups[m.matchup_id] = [];
+        groups[m.matchup_id].push(m);
+      });
+      Object.values(groups).forEach(pair => {
+        if (pair.length !== 2) return;
+        const [a, b] = pair;
+        const teamA = byRoster[a.roster_id];
+        const teamB = byRoster[b.roster_id];
+        if (!teamA || !teamB) return;
+        if (!a.points && !b.points) return; // skip unplayed
+        allMeetings.push({
+          season: seasonLabel,
+          week: Number(w),
+          ownerA: teamA.owner,
+          ownerB: teamB.owner,
+          teamAName: teamA.name,
+          teamBName: teamB.name,
+          teamA, teamB,
+          scoreA: a.points || 0,
+          scoreB: b.points || 0,
+        });
+      });
+    });
+  };
+  scanSeason(matchupsByWeek, season, teams);
+  (history || []).forEach(s => scanSeason(s.matchupsByWeek, s.season, s.standings));
+
+  // ---- Single-week records ----
+  // Highest single-team week score
+  let highestWeek = null;
+  // Lowest single-team week score (filter out 0s — those are unplayed)
+  let lowestWeek = null;
+  // Biggest blowout (largest margin)
+  let biggestBlowout = null;
+  // Closest game (smallest margin, but > 0)
+  let closestGame = null;
+  // Highest combined-score game
+  let highestCombined = null;
+
+  allMeetings.forEach(m => {
+    const scores = [
+      { side: 'A', score: m.scoreA, team: m.teamA, opp: m.teamB, oppScore: m.scoreB, owner: m.ownerA, oppOwner: m.ownerB },
+      { side: 'B', score: m.scoreB, team: m.teamB, opp: m.teamA, oppScore: m.scoreA, owner: m.ownerB, oppOwner: m.ownerA },
+    ];
+    scores.forEach(s => {
+      if (s.score > 0) {
+        if (!highestWeek || s.score > highestWeek.score) {
+          highestWeek = { ...s, season: m.season, week: m.week };
+        }
+        if (!lowestWeek || s.score < lowestWeek.score) {
+          lowestWeek = { ...s, season: m.season, week: m.week };
+        }
+      }
+    });
+    const margin = Math.abs(m.scoreA - m.scoreB);
+    if (m.scoreA > 0 && m.scoreB > 0) {
+      if (!biggestBlowout || margin > biggestBlowout.margin) {
+        const winner = m.scoreA > m.scoreB ? { team: m.teamA, owner: m.ownerA, score: m.scoreA } : { team: m.teamB, owner: m.ownerB, score: m.scoreB };
+        const loser  = m.scoreA > m.scoreB ? { team: m.teamB, owner: m.ownerB, score: m.scoreB } : { team: m.teamA, owner: m.ownerA, score: m.scoreA };
+        biggestBlowout = { margin, winner, loser, season: m.season, week: m.week, meeting: m };
+      }
+      if (margin > 0 && (!closestGame || margin < closestGame.margin)) {
+        closestGame = { margin, season: m.season, week: m.week, meeting: m };
+      }
+      const combined = m.scoreA + m.scoreB;
+      if (!highestCombined || combined > highestCombined.combined) {
+        highestCombined = { combined, season: m.season, week: m.week, meeting: m };
+      }
+    }
+  });
+
+  // ---- Season records ----
+  // Build per-(season, owner) totals: points scored, points allowed, weekly scores list
+  const seasonTotals = {}; // key: `${season}|${owner}` -> { season, owner, team, weeks: [points] }
+  allMeetings.forEach(m => {
+    [
+      { owner: m.ownerA, team: m.teamA, score: m.scoreA, week: m.week },
+      { owner: m.ownerB, team: m.teamB, score: m.scoreB, week: m.week },
+    ].forEach(s => {
+      const key = `${m.season}|${s.owner}`;
+      if (!seasonTotals[key]) {
+        seasonTotals[key] = { season: m.season, owner: s.owner, team: s.team, weeks: [] };
+      }
+      seasonTotals[key].weeks.push({ week: s.week, score: s.score });
+    });
+  });
+
+  // Highest season points-for
+  let mostPointsSeason = null;
+  // Fewest season points-for (with at least 3 games played)
+  let fewestPointsSeason = null;
+  Object.values(seasonTotals).forEach(st => {
+    const played = st.weeks.filter(w => w.score > 0);
+    if (played.length < 3) return; // skip thin samples
+    const total = played.reduce((sum, w) => sum + w.score, 0);
+    if (!mostPointsSeason || total > mostPointsSeason.total) {
+      mostPointsSeason = { ...st, total, played: played.length };
+    }
+    if (!fewestPointsSeason || total < fewestPointsSeason.total) {
+      fewestPointsSeason = { ...st, total, played: played.length };
+    }
+  });
+
+  // ---- Hall of Fame ----
+  // Champions from past seasons (current season ongoing, so no champ yet)
+  const champions = (history || [])
+    .filter(s => s.champion)
+    .map(s => ({ season: s.season, champion: s.champion }));
+
+  // Empty state
+  if (allMeetings.length === 0) {
+    return (
+      <div className="bg-gray-50 min-h-screen">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 py-10">
+          <h1 className="text-4xl sm:text-5xl font-display font-black text-gray-900 tracking-tight mb-2">RECORDS</h1>
+          <div className="bg-white rounded-xl border border-gray-200 p-12 text-center text-gray-500 mt-6">
+            No games played yet. League records will appear here as the season unfolds.
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="bg-gray-50 min-h-screen">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 py-10">
+        <h1 className="text-4xl sm:text-5xl font-display font-black text-gray-900 tracking-tight mb-2">RECORDS</h1>
+        <p className="text-gray-600 mb-8">All-time league records and Hall of Fame. Updated continuously.</p>
+
+        {/* Hall of Fame */}
+        {champions.length > 0 && (
+          <div className="bg-gradient-to-br from-amber-50 to-amber-100 border border-amber-200 rounded-xl p-6 mb-6">
+            <h2 className="text-xl font-display font-black text-amber-900 mb-4 uppercase tracking-tight flex items-center gap-2">
+              🏆 Hall of Fame
+            </h2>
+            <div className="grid sm:grid-cols-2 gap-3">
+              {champions.map(c => (
+                <button
+                  key={c.season}
+                  onClick={() => goToTeam(c.champion.owner)}
+                  className="flex items-center gap-4 bg-white rounded-lg p-4 border border-amber-200 hover:border-amber-400 transition-colors text-left"
+                >
+                  <div className="text-3xl font-display font-black text-amber-700 shrink-0">{c.season}</div>
+                  <div className="flex items-center gap-3 min-w-0 flex-1">
+                    <span className="w-9 h-9 flex items-center justify-center font-black text-white text-xs rounded shrink-0" style={{ backgroundColor: c.champion.primary }}>
+                      {c.champion.abbrev}
+                    </span>
+                    <div className="min-w-0">
+                      <div className="font-bold text-gray-900 truncate">{c.champion.name}</div>
+                      <div className="text-xs text-gray-500 truncate">{c.champion.owner}</div>
+                    </div>
+                  </div>
+                  <span className="text-xs font-black text-amber-600 uppercase tracking-widest shrink-0">Champion</span>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Single-week records */}
+        <div className="bg-white rounded-xl border border-gray-200 p-6 mb-6">
+          <h2 className="text-xl font-display font-black text-gray-900 mb-4 uppercase tracking-tight">Single-Week Records</h2>
+          <div className="grid sm:grid-cols-2 gap-3">
+            {highestWeek && (
+              <RecordRow
+                label="Highest Score"
+                value={highestWeek.score.toFixed(1)}
+                detail={`${highestWeek.team.name} · ${highestWeek.season} Wk ${highestWeek.week}`}
+                accent="green"
+                onClick={() => openMatchup && openMatchup({ season: highestWeek.season, week: highestWeek.week, ownerA: highestWeek.owner, ownerB: highestWeek.oppOwner })}
+              />
+            )}
+            {lowestWeek && (
+              <RecordRow
+                label="Lowest Score"
+                value={lowestWeek.score.toFixed(1)}
+                detail={`${lowestWeek.team.name} · ${lowestWeek.season} Wk ${lowestWeek.week}`}
+                accent="red"
+                onClick={() => openMatchup && openMatchup({ season: lowestWeek.season, week: lowestWeek.week, ownerA: lowestWeek.owner, ownerB: lowestWeek.oppOwner })}
+              />
+            )}
+            {biggestBlowout && (
+              <RecordRow
+                label="Biggest Blowout"
+                value={`+${biggestBlowout.margin.toFixed(1)}`}
+                detail={`${biggestBlowout.winner.team.name} over ${biggestBlowout.loser.team.name} · ${biggestBlowout.season} Wk ${biggestBlowout.week}`}
+                accent="purple"
+                onClick={() => openMatchup && openMatchup({ season: biggestBlowout.season, week: biggestBlowout.week, ownerA: biggestBlowout.meeting.ownerA, ownerB: biggestBlowout.meeting.ownerB })}
+              />
+            )}
+            {closestGame && (
+              <RecordRow
+                label="Closest Game"
+                value={`${closestGame.margin.toFixed(1)}`}
+                detail={`${closestGame.meeting.teamAName} vs ${closestGame.meeting.teamBName} · ${closestGame.season} Wk ${closestGame.week}`}
+                accent="blue"
+                onClick={() => openMatchup && openMatchup({ season: closestGame.season, week: closestGame.week, ownerA: closestGame.meeting.ownerA, ownerB: closestGame.meeting.ownerB })}
+              />
+            )}
+            {highestCombined && (
+              <RecordRow
+                label="Highest Combined"
+                value={highestCombined.combined.toFixed(1)}
+                detail={`${highestCombined.meeting.teamAName} vs ${highestCombined.meeting.teamBName} · ${highestCombined.season} Wk ${highestCombined.week}`}
+                accent="amber"
+                onClick={() => openMatchup && openMatchup({ season: highestCombined.season, week: highestCombined.week, ownerA: highestCombined.meeting.ownerA, ownerB: highestCombined.meeting.ownerB })}
+              />
+            )}
+          </div>
+        </div>
+
+        {/* Season records */}
+        <div className="bg-white rounded-xl border border-gray-200 p-6">
+          <h2 className="text-xl font-display font-black text-gray-900 mb-4 uppercase tracking-tight">Season Records</h2>
+          <div className="grid sm:grid-cols-2 gap-3">
+            {mostPointsSeason && (
+              <RecordRow
+                label="Most Points (Season)"
+                value={mostPointsSeason.total.toFixed(1)}
+                detail={`${mostPointsSeason.team.name} · ${mostPointsSeason.season} (${mostPointsSeason.played} games)`}
+                accent="green"
+                onClick={() => goToTeam(mostPointsSeason.owner)}
+              />
+            )}
+            {fewestPointsSeason && (
+              <RecordRow
+                label="Fewest Points (Season)"
+                value={fewestPointsSeason.total.toFixed(1)}
+                detail={`${fewestPointsSeason.team.name} · ${fewestPointsSeason.season} (${fewestPointsSeason.played} games)`}
+                accent="red"
+                onClick={() => goToTeam(fewestPointsSeason.owner)}
+              />
+            )}
+          </div>
+          <p className="text-xs text-gray-400 mt-4">Season records require at least 3 games played.</p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function RecordRow({ label, value, detail, accent, onClick }) {
+  const ACCENTS = {
+    green:  { val: 'text-green-700',  bg: 'bg-green-50',  border: 'border-green-200' },
+    red:    { val: 'text-red-700',    bg: 'bg-red-50',    border: 'border-red-200' },
+    blue:   { val: 'text-blue-700',   bg: 'bg-blue-50',   border: 'border-blue-200' },
+    purple: { val: 'text-purple-700', bg: 'bg-purple-50', border: 'border-purple-200' },
+    amber:  { val: 'text-amber-700',  bg: 'bg-amber-50',  border: 'border-amber-200' },
+  };
+  const a = ACCENTS[accent] || ACCENTS.blue;
+  const Wrapper = onClick ? 'button' : 'div';
+  return (
+    <Wrapper
+      onClick={onClick}
+      className={`w-full text-left ${a.bg} ${a.border} border rounded-lg p-4 ${onClick ? 'hover:shadow-sm transition-shadow cursor-pointer' : ''}`}
+    >
+      <div className="text-xs font-black text-gray-600 uppercase tracking-widest mb-1">{label}</div>
+      <div className={`text-3xl font-display font-black ${a.val} mb-1`}>{value}</div>
+      <div className="text-xs text-gray-600 truncate">{detail}</div>
+    </Wrapper>
+  );
+}
+
 // ============ HISTORY PAGE ============
 function HistoryPage({ data, setPage, setActiveTeam, openMatchup }) {
   const { history, players, teams } = data;
@@ -1900,8 +2188,9 @@ function PlayersPage({ data, openPlayer }) {
   const { players, teams, season, matchupsByWeek, history } = data;
   const [query, setQuery] = useState('');
   const [posFilter, setPosFilter] = useState('ALL');
+  const [teamFilter, setTeamFilter] = useState('ALL'); // team.id or 'ALL'
   const [mode, setMode] = useState('rostered'); // 'rostered' or 'all'
-  const [sortBy, setSortBy] = useState('total'); // 'total' | 'avg' | 'avgStart' | 'name'
+  const [sortBy, setSortBy] = useState('total'); // 'total' | 'avg' | 'avgStart' | 'started' | 'name'
 
   // Set of player IDs rostered anywhere in the league, for the "rostered" badge
   const rosteredIds = new Set();
@@ -1976,6 +2265,11 @@ function PlayersPage({ data, openPlayer }) {
         const name = p.full_name || `${p.first_name || ''} ${p.last_name || ''}`.trim() || pid;
         if (q.length >= 2 && !name.toLowerCase().includes(q)) return null;
         if (posFilter !== 'ALL' && p.position !== posFilter) return null;
+        // Team filter: check which league team rosters this player
+        if (teamFilter !== 'ALL') {
+          const ownerTeam = rosterOwner[pid];
+          if (!ownerTeam || ownerTeam.id !== teamFilter) return null;
+        }
         const stats = rosteredStats.data[pid];
         const starter = starterTotals[pid];
         return {
@@ -1995,6 +2289,7 @@ function PlayersPage({ data, openPlayer }) {
         if (sortBy === 'name') return a.name.localeCompare(b.name);
         if (sortBy === 'avg') return b.avg - a.avg;
         if (sortBy === 'avgStart') return b.avgStart - a.avgStart;
+        if (sortBy === 'started') return b.startCount - a.startCount;
         // default: total points
         return b.totalPts - a.totalPts;
       });
@@ -2028,6 +2323,7 @@ function PlayersPage({ data, openPlayer }) {
     total: 'Total PPR',
     avg: 'Avg / Game',
     avgStart: 'Avg / Start',
+    started: 'Games Started',
     name: 'Name (A-Z)',
   };
 
@@ -2067,10 +2363,11 @@ function PlayersPage({ data, openPlayer }) {
         />
 
         {/* Position filter */}
-        <div className="flex gap-2 mb-4 flex-wrap">
+        <div className="flex items-center gap-2 mb-3 flex-wrap">
+          <span className="text-xs font-black text-gray-500 uppercase tracking-widest mr-1 w-28 shrink-0">Filter by Position:</span>
           {positions.map(pos => (
             <button key={pos} onClick={() => setPosFilter(pos)}
-              className={`px-4 py-2 rounded-lg text-sm font-bold transition-colors ${
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-colors ${
                 posFilter === pos ? 'bg-blue-700 text-white' : 'bg-white text-gray-700 hover:bg-gray-100 border border-gray-200'
               }`}>
               {pos}
@@ -2078,10 +2375,35 @@ function PlayersPage({ data, openPlayer }) {
           ))}
         </div>
 
+        {/* Team filter (rostered mode only) */}
+        {mode === 'rostered' && (
+          <div className="flex items-center gap-2 mb-4 flex-wrap">
+            <span className="text-xs font-black text-gray-500 uppercase tracking-widest mr-1 w-28 shrink-0">Filter by Team:</span>
+            <button onClick={() => setTeamFilter('ALL')}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-colors ${
+                teamFilter === 'ALL' ? 'bg-blue-700 text-white' : 'bg-white text-gray-700 hover:bg-gray-100 border border-gray-200'
+              }`}>
+              ALL
+            </button>
+            {teams.map(t => (
+              <button key={t.id} onClick={() => setTeamFilter(t.id)}
+                title={t.name}
+                className={`flex items-center gap-1.5 px-2 py-1 rounded-lg text-xs font-bold transition-colors ${
+                  teamFilter === t.id ? 'bg-gray-900 text-white' : 'bg-white text-gray-700 hover:bg-gray-100 border border-gray-200'
+                }`}>
+                <span className="w-5 h-5 flex items-center justify-center font-black text-white text-[9px] rounded shrink-0" style={{ backgroundColor: t.primary }}>
+                  {t.abbrev}
+                </span>
+                <span className="hidden md:inline">{t.name}</span>
+              </button>
+            ))}
+          </div>
+        )}
+
         {/* Sort options (rostered mode only) */}
         {mode === 'rostered' && (
           <div className="flex items-center gap-2 mb-8 flex-wrap">
-            <span className="text-xs font-black text-gray-500 uppercase tracking-widest mr-1">Sort by:</span>
+            <span className="text-xs font-black text-gray-500 uppercase tracking-widest mr-1 w-28 shrink-0">Sort by:</span>
             {Object.entries(SORT_LABEL).map(([key, label]) => (
               <button key={key} onClick={() => setSortBy(key)}
                 className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-colors ${
@@ -2118,7 +2440,7 @@ function PlayersPage({ data, openPlayer }) {
                 <span className="col-span-5">Player</span>
                 <span className="col-span-2 text-center">Team</span>
                 <span className="col-span-2 text-right">Total Pts</span>
-                <span className="col-span-1 text-right">G</span>
+                <span className="col-span-1 text-right">Starts</span>
                 <span className="col-span-1 text-right">Avg</span>
                 <span className="col-span-1 text-right">Avg/Start</span>
               </div>
@@ -2177,7 +2499,7 @@ function PlayersPage({ data, openPlayer }) {
                   <span className="col-span-2 text-right font-display font-black text-gray-900">
                     {p.totalPts ? p.totalPts.toFixed(1) : '—'}
                   </span>
-                  <span className="col-span-1 text-right text-sm text-gray-600">{p.games || '—'}</span>
+                  <span className="col-span-1 text-right text-sm text-gray-600">{p.startCount || '—'}</span>
                   <span className="col-span-1 text-right text-sm text-gray-700 font-semibold">
                     {p.avg ? p.avg.toFixed(1) : '—'}
                   </span>
@@ -3378,23 +3700,74 @@ export default function App() {
            {page === 'Teams' && <TeamsPage data={data} setPage={setPage} setActiveTeam={setActiveTeam} />}
            {page === 'Players' && <PlayersPage data={data} openPlayer={openPlayer} />}
            {page === 'History' && <HistoryPage data={data} setPage={setPage} setActiveTeam={setActiveTeam} openMatchup={openMatchup} />}
+           {page === 'Records' && <RecordsPage data={data} setPage={setPage} setActiveTeam={setActiveTeam} openMatchup={openMatchup} />}
            {page === 'TeamHub' && <TeamHubPage teamId={activeTeam} data={data} setPage={setPage} openPlayer={openPlayer} />}
            {page === 'News' && <NewsPage openArticle={openArticle} />}
            {page === 'Article' && <ArticlePage articleId={activeArticle} data={data} setPage={setPage} setActiveTeam={setActiveTeam} />}
            {page === 'Player' && <PlayerPage playerId={activePlayer} data={data} setPage={setPage} setActiveTeam={setActiveTeam} />}
            {page === 'MatchupDetail' && <MatchupDetailPage matchupKey={activeMatchup} data={data} setPage={setPage} setActiveTeam={setActiveTeam} openPlayer={openPlayer} openMatchup={openMatchup} />}
          </>}
-        <footer className="bg-blue-950 text-white py-10 mt-12">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 flex flex-col sm:flex-row justify-between items-center gap-4">
-            <div className="flex items-center gap-3">
-              {LOGO_URL ? (
-                <img src={LOGO_URL} alt="CTESPN Dynasty League" className="w-10 h-10 object-contain rounded bg-white" />
-              ) : (
-                <div className="w-10 h-10 bg-white flex items-center justify-center font-black text-blue-700 text-xl rounded">C</div>
-              )}
-              <span className="font-display font-black text-xl tracking-tight">CTESPN Dynasty League</span>
+        <footer className="bg-blue-950 text-white mt-12">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 py-10">
+            {/* Top: brand + nav + league info */}
+            <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-8 mb-8">
+              {/* Brand */}
+              <div className="lg:col-span-2">
+                <div className="flex items-center gap-3 mb-3">
+                  {LOGO_URL ? (
+                    <img src={LOGO_URL} alt="CTESPN Dynasty League" className="w-10 h-10 object-contain rounded bg-white" />
+                  ) : (
+                    <div className="w-10 h-10 bg-white flex items-center justify-center font-black text-blue-700 text-xl rounded">C</div>
+                  )}
+                  <span className="font-display font-black text-xl tracking-tight">CTESPN Dynasty League</span>
+                </div>
+                <p className="text-blue-200 text-sm leading-relaxed max-w-md">
+                  The official home of the CTESPN Dynasty League — standings, matchups, transactions, and history, all in one place.
+                </p>
+              </div>
+
+              {/* Site nav */}
+              <div>
+                <h3 className="text-xs font-black text-blue-300 uppercase tracking-widest mb-3">Explore</h3>
+                <ul className="space-y-2 text-sm">
+                  <li><button onClick={() => { setPage('Home'); window.scrollTo(0,0); }} className="text-blue-100 hover:text-white">Home</button></li>
+                  <li><button onClick={() => { setPage('Matchups'); window.scrollTo(0,0); }} className="text-blue-100 hover:text-white">Matchups</button></li>
+                  <li><button onClick={() => { setPage('Standings'); window.scrollTo(0,0); }} className="text-blue-100 hover:text-white">Standings</button></li>
+                  <li><button onClick={() => { setPage('Teams'); window.scrollTo(0,0); }} className="text-blue-100 hover:text-white">Teams</button></li>
+                  <li><button onClick={() => { setPage('Players'); window.scrollTo(0,0); }} className="text-blue-100 hover:text-white">Players</button></li>
+                </ul>
+              </div>
+
+              {/* League info */}
+              <div>
+                <h3 className="text-xs font-black text-blue-300 uppercase tracking-widest mb-3">League</h3>
+                <ul className="space-y-2 text-sm">
+                  <li className="text-blue-100">
+                    Season <span className="font-bold text-white">{data?.season || '—'}</span>
+                  </li>
+                  <li className="text-blue-100">
+                    Week <span className="font-bold text-white">{data?.currentWeek || '—'}</span>
+                  </li>
+                  <li>
+                    <a
+                      href={`https://sleeper.com/leagues/${LEAGUE_ID}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-blue-100 hover:text-white inline-flex items-center gap-1"
+                    >
+                      View on Sleeper <span className="text-xs">↗</span>
+                    </a>
+                  </li>
+                  <li><button onClick={() => { setPage('History'); window.scrollTo(0,0); }} className="text-blue-100 hover:text-white">League History</button></li>
+                </ul>
+              </div>
             </div>
-            <p className="text-blue-200 text-sm">Powered by Sleeper API · League {LEAGUE_ID}</p>
+
+            {/* Bottom: legal/credit */}
+            <div className="pt-6 border-t border-blue-900 flex flex-col sm:flex-row justify-between items-center gap-3 text-xs text-blue-300">
+              <span>© {new Date().getFullYear()} CTESPN Dynasty League. All rights reserved.</span>
+              <span>Made with fantasy obsession · Data via Sleeper</span>
+            </div>
           </div>
         </footer>
       </div>
