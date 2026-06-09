@@ -1531,7 +1531,17 @@ function ArticlePage({ articleId, data, setPage, setActiveTeam }) {
 
 // ============ HISTORY PAGE ============
 function HistoryPage({ data, setPage, setActiveTeam, openMatchup }) {
-  const { history, players } = data;
+  const { history, players, teams } = data;
+
+  // Look up the current team for a past-season owner (managers persist by display name)
+  const goToTeam = (ownerName) => {
+    const currentTeam = teams.find(t => t.owner === ownerName);
+    if (currentTeam) {
+      setActiveTeam(currentTeam.id);
+      setPage('TeamHub');
+      window.scrollTo(0, 0);
+    }
+  };
 
   if (!history || history.length === 0) {
     return (
@@ -1554,7 +1564,7 @@ function HistoryPage({ data, setPage, setActiveTeam, openMatchup }) {
 
         <div className="space-y-6">
           {history.map(season => (
-            <SeasonHistoryCard key={season.leagueId} season={season} players={players} openMatchup={openMatchup} />
+            <SeasonHistoryCard key={season.leagueId} season={season} players={players} openMatchup={openMatchup} goToTeam={goToTeam} />
           ))}
         </div>
       </div>
@@ -1762,7 +1772,7 @@ function TeamLineup({ team, raw, score, players, won, openPlayer }) {
   );
 }
 
-function SeasonHistoryCard({ season, players, openMatchup }) {
+function SeasonHistoryCard({ season, players, openMatchup, goToTeam }) {
   const [isOpen, setIsOpen] = useState(true); // expanded by default — v2
   const [week, setWeek] = useState(null);
 
@@ -1807,22 +1817,32 @@ function SeasonHistoryCard({ season, players, openMatchup }) {
         <span className="col-span-2 text-center">W-L</span>
         <span className="col-span-3 text-right">Points For</span>
       </div>
-      {standings.map((t, i) => (
-        <div key={t.id} className="grid grid-cols-12 items-center px-6 py-2.5 border-b border-gray-100 last:border-0">
-          <span className="col-span-1 text-gray-400 font-bold text-sm">{i + 1}</span>
-          <div className="col-span-6 flex items-center gap-3 min-w-0">
-            <span className="w-6 h-6 flex items-center justify-center font-black text-white text-[10px] rounded shrink-0" style={{ backgroundColor: t.primary }}>
-              {t.abbrev}
-            </span>
-            <div className="min-w-0">
-              <div className="font-bold text-gray-900 truncate">{t.name}</div>
-              <div className="text-xs text-gray-500 truncate">{t.owner}</div>
+      {standings.map((t, i) => {
+        const handleClick = goToTeam ? () => goToTeam(t.owner) : undefined;
+        const Wrapper = handleClick ? 'button' : 'div';
+        return (
+          <Wrapper
+            key={t.id}
+            onClick={handleClick}
+            className={`w-full grid grid-cols-12 items-center px-6 py-2.5 border-b border-gray-100 last:border-0 ${
+              handleClick ? 'hover:bg-blue-50/50 transition-colors text-left cursor-pointer' : ''
+            }`}
+          >
+            <span className="col-span-1 text-gray-400 font-bold text-sm">{i + 1}</span>
+            <div className="col-span-6 flex items-center gap-3 min-w-0">
+              <span className="w-6 h-6 flex items-center justify-center font-black text-white text-[10px] rounded shrink-0" style={{ backgroundColor: t.primary }}>
+                {t.abbrev}
+              </span>
+              <div className="min-w-0">
+                <div className={`font-bold text-gray-900 truncate ${handleClick ? 'hover:text-blue-700' : ''}`}>{t.name}</div>
+                <div className="text-xs text-gray-500 truncate">{t.owner}</div>
+              </div>
             </div>
-          </div>
-          <span className="col-span-2 text-center text-gray-900 font-bold">{t.wins}-{t.losses}{t.ties ? `-${t.ties}` : ''}</span>
-          <span className="col-span-3 text-right text-gray-700 font-semibold">{(t.pointsFor || 0).toFixed(1)}</span>
-        </div>
-      ))}
+            <span className="col-span-2 text-center text-gray-900 font-bold">{t.wins}-{t.losses}{t.ties ? `-${t.ties}` : ''}</span>
+            <span className="col-span-3 text-right text-gray-700 font-semibold">{(t.pointsFor || 0).toFixed(1)}</span>
+          </Wrapper>
+        );
+      })}
 
       {/* Expandable: playoff bracket + matchups by week */}
       {isOpen && (
@@ -1877,9 +1897,11 @@ function SeasonHistoryCard({ season, players, openMatchup }) {
 
 // ============ PLAYERS PAGE (searchable database) ============
 function PlayersPage({ data, openPlayer }) {
-  const { players, teams } = data;
+  const { players, teams, season, matchupsByWeek, history } = data;
   const [query, setQuery] = useState('');
   const [posFilter, setPosFilter] = useState('ALL');
+  const [mode, setMode] = useState('rostered'); // 'rostered' or 'all'
+  const [sortBy, setSortBy] = useState('total'); // 'total' | 'avg' | 'avgStart' | 'name'
 
   // Set of player IDs rostered anywhere in the league, for the "rostered" badge
   const rosteredIds = new Set();
@@ -1891,53 +1913,161 @@ function PlayersPage({ data, openPlayer }) {
     });
   });
 
+  // Fetch current-season stats for ALL rostered players (only when in rostered mode)
+  const [rosteredStats, setRosteredStats] = useState({ loading: false, data: {} });
+  useEffect(() => {
+    if (mode !== 'rostered' || rosteredIds.size === 0) return;
+    let cancelled = false;
+    setRosteredStats({ loading: true, data: {} });
+
+    const ids = Array.from(rosteredIds);
+    Promise.all(
+      ids.map(pid =>
+        fetch(`${SLEEPER_STATS_API}/stats/nfl/player/${pid}?season=${season}&season_type=regular&grouping=season`)
+          .then(r => r.json())
+          .then(json => ({ pid, stats: json?.stats || null }))
+          .catch(() => ({ pid, stats: null }))
+      )
+    ).then(results => {
+      if (cancelled) return;
+      const map = {};
+      results.forEach(({ pid, stats }) => { map[pid] = stats; });
+      setRosteredStats({ loading: false, data: map });
+    });
+
+    return () => { cancelled = true; };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mode, season, teams.length]);
+
+  // Compute starter stats per player (same logic as PlayerPage, but for all rostered)
+  // Build a quick lookup: pid -> { realGames: number, totalPts: number }
+  const starterTotals = {};
+  const scanSeasonForStarter = (mbw, standings) => {
+    if (!mbw) return;
+    Object.values(mbw).forEach(weekMatchups => {
+      (weekMatchups || []).forEach(m => {
+        const starters = m.starters || [];
+        const pointsMap = m.players_points || {};
+        starters.forEach(pid => {
+          const pts = pointsMap[pid];
+          if (pts == null || pts <= 0) return;
+          if (!starterTotals[pid]) starterTotals[pid] = { realGames: 0, totalPts: 0 };
+          starterTotals[pid].realGames++;
+          starterTotals[pid].totalPts += pts;
+        });
+      });
+    });
+  };
+  scanSeasonForStarter(matchupsByWeek, teams);
+  (history || []).forEach(s => scanSeasonForStarter(s.matchupsByWeek, s.standings));
+
   const positions = ['ALL', 'QB', 'RB', 'WR', 'TE', 'K', 'DEF'];
 
-  // Only search once the user has typed at least 2 characters —
-  // rendering all ~11,000 players at once would be slow.
+  // ----- Build the results list -----
   const q = query.trim().toLowerCase();
   let results = [];
-  if (q.length >= 2) {
-    results = Object.entries(players)
-      .filter(([pid, p]) => {
-        if (!p) return false;
-        const name = (p.full_name || `${p.first_name || ''} ${p.last_name || ''}`).toLowerCase();
-        if (!name.includes(q)) return false;
-        if (posFilter !== 'ALL' && p.position !== posFilter) return false;
-        return true;
+
+  if (mode === 'rostered') {
+    // ALL rostered players, no need to type to search
+    results = Array.from(rosteredIds)
+      .map(pid => {
+        const p = players[pid];
+        if (!p) return null;
+        const name = p.full_name || `${p.first_name || ''} ${p.last_name || ''}`.trim() || pid;
+        if (q.length >= 2 && !name.toLowerCase().includes(q)) return null;
+        if (posFilter !== 'ALL' && p.position !== posFilter) return null;
+        const stats = rosteredStats.data[pid];
+        const starter = starterTotals[pid];
+        return {
+          id: pid,
+          name,
+          pos: p.position || '—',
+          team: p.team || 'FA',
+          totalPts: stats?.pts_ppr || 0,
+          games: stats?.gp || 0,
+          avg: stats?.gp > 0 ? (stats.pts_ppr || 0) / stats.gp : 0,
+          avgStart: starter && starter.realGames > 0 ? starter.totalPts / starter.realGames : 0,
+          startCount: starter?.realGames || 0,
+        };
       })
-      .slice(0, 60) // cap results for performance
-      .map(([pid, p]) => ({
-        id: pid,
-        name: p.full_name || `${p.first_name || ''} ${p.last_name || ''}`.trim() || pid,
-        pos: p.position || '—',
-        team: p.team || 'FA',
-      }))
+      .filter(Boolean)
       .sort((a, b) => {
-        // Rostered players first, then alphabetical
-        const ar = rosteredIds.has(a.id) ? 0 : 1;
-        const br = rosteredIds.has(b.id) ? 0 : 1;
-        return ar - br || a.name.localeCompare(b.name);
+        if (sortBy === 'name') return a.name.localeCompare(b.name);
+        if (sortBy === 'avg') return b.avg - a.avg;
+        if (sortBy === 'avgStart') return b.avgStart - a.avgStart;
+        // default: total points
+        return b.totalPts - a.totalPts;
       });
+  } else {
+    // All players mode — require search, sort alphabetically (no stats available)
+    if (q.length >= 2) {
+      results = Object.entries(players)
+        .filter(([pid, p]) => {
+          if (!p) return false;
+          const name = (p.full_name || `${p.first_name || ''} ${p.last_name || ''}`).toLowerCase();
+          if (!name.includes(q)) return false;
+          if (posFilter !== 'ALL' && p.position !== posFilter) return false;
+          return true;
+        })
+        .slice(0, 60)
+        .map(([pid, p]) => ({
+          id: pid,
+          name: p.full_name || `${p.first_name || ''} ${p.last_name || ''}`.trim() || pid,
+          pos: p.position || '—',
+          team: p.team || 'FA',
+        }))
+        .sort((a, b) => {
+          const ar = rosteredIds.has(a.id) ? 0 : 1;
+          const br = rosteredIds.has(b.id) ? 0 : 1;
+          return ar - br || a.name.localeCompare(b.name);
+        });
+    }
   }
+
+  const SORT_LABEL = {
+    total: 'Total PPR',
+    avg: 'Avg / Game',
+    avgStart: 'Avg / Start',
+    name: 'Name (A-Z)',
+  };
 
   return (
     <div className="bg-gray-50 min-h-screen">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 py-10">
         <h1 className="text-4xl sm:text-5xl font-display font-black text-gray-900 tracking-tight mb-2">PLAYERS</h1>
-        <p className="text-gray-600 mb-6">Search the full NFL player database. Rostered players are marked.</p>
+        <p className="text-gray-600 mb-6">
+          {mode === 'rostered'
+            ? `All ${rosteredIds.size} rostered players in the league, ranked by ${SORT_LABEL[sortBy]}.`
+            : 'Search the full NFL player database. Rostered players are marked.'}
+        </p>
+
+        {/* Mode toggle */}
+        <div className="flex gap-2 mb-4">
+          <button onClick={() => setMode('rostered')}
+            className={`px-4 py-2 rounded-lg text-sm font-bold transition-colors ${
+              mode === 'rostered' ? 'bg-blue-700 text-white' : 'bg-white text-gray-700 hover:bg-gray-100 border border-gray-200'
+            }`}>
+            Rostered Players
+          </button>
+          <button onClick={() => setMode('all')}
+            className={`px-4 py-2 rounded-lg text-sm font-bold transition-colors ${
+              mode === 'all' ? 'bg-blue-700 text-white' : 'bg-white text-gray-700 hover:bg-gray-100 border border-gray-200'
+            }`}>
+            All NFL Players
+          </button>
+        </div>
 
         {/* Search box */}
         <input
           type="text"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
-          placeholder="Search players by name…"
+          placeholder={mode === 'rostered' ? 'Filter by name (optional)…' : 'Search players by name…'}
           className="w-full px-4 py-3 rounded-xl border border-gray-300 text-gray-900 mb-4 focus:outline-none focus:border-blue-700 focus:ring-1 focus:ring-blue-700"
         />
 
         {/* Position filter */}
-        <div className="flex gap-2 mb-8 flex-wrap">
+        <div className="flex gap-2 mb-4 flex-wrap">
           {positions.map(pos => (
             <button key={pos} onClick={() => setPosFilter(pos)}
               className={`px-4 py-2 rounded-lg text-sm font-bold transition-colors ${
@@ -1948,39 +2078,112 @@ function PlayersPage({ data, openPlayer }) {
           ))}
         </div>
 
+        {/* Sort options (rostered mode only) */}
+        {mode === 'rostered' && (
+          <div className="flex items-center gap-2 mb-8 flex-wrap">
+            <span className="text-xs font-black text-gray-500 uppercase tracking-widest mr-1">Sort by:</span>
+            {Object.entries(SORT_LABEL).map(([key, label]) => (
+              <button key={key} onClick={() => setSortBy(key)}
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-colors ${
+                  sortBy === key ? 'bg-gray-900 text-white' : 'bg-white text-gray-700 hover:bg-gray-100 border border-gray-200'
+                }`}>
+                {label}
+              </button>
+            ))}
+          </div>
+        )}
+        {mode === 'all' && <div className="mb-8" />}
+
         {/* Results */}
-        {q.length < 2 ? (
+        {mode === 'all' && q.length < 2 ? (
           <div className="bg-white rounded-xl border border-gray-200 p-12 text-center text-gray-500">
             Start typing a player's name to search.
           </div>
+        ) : rosteredStats.loading && mode === 'rostered' ? (
+          <div className="bg-white rounded-xl border border-gray-200 p-12 text-center text-gray-500">
+            <div className="flex items-center justify-center gap-3">
+              <div className="w-4 h-4 border-2 border-blue-700 border-t-transparent rounded-full animate-spin" />
+              Loading stats for {rosteredIds.size} players…
+            </div>
+          </div>
         ) : results.length === 0 ? (
           <div className="bg-white rounded-xl border border-gray-200 p-12 text-center text-gray-500">
-            No players found for "{query}".
+            No players found{q ? ` for "${query}"` : ''}.
           </div>
         ) : (
           <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+            {/* Column headers (rostered mode) */}
+            {mode === 'rostered' && (
+              <div className="hidden sm:grid grid-cols-12 text-xs font-bold text-gray-500 uppercase tracking-wider px-5 py-2 border-b border-gray-200 bg-gray-50">
+                <span className="col-span-5">Player</span>
+                <span className="col-span-2 text-center">Team</span>
+                <span className="col-span-2 text-right">Total Pts</span>
+                <span className="col-span-1 text-right">G</span>
+                <span className="col-span-1 text-right">Avg</span>
+                <span className="col-span-1 text-right">Avg/Start</span>
+              </div>
+            )}
             {results.map(p => {
               const owner = rosterOwner[p.id];
+              if (mode === 'all') {
+                return (
+                  <button
+                    key={p.id}
+                    onClick={() => openPlayer(p.id)}
+                    className="w-full text-left flex items-center gap-4 px-5 py-3 border-b border-gray-100 last:border-0 hover:bg-blue-50/50 transition-colors"
+                  >
+                    <span className="inline-block px-2 py-0.5 bg-gray-100 text-gray-700 text-xs font-bold rounded w-12 text-center shrink-0">
+                      {p.pos}
+                    </span>
+                    <span className="font-bold text-gray-900 flex-1 hover:text-blue-700">{p.name}</span>
+                    <span className="text-sm text-gray-500">{p.team}</span>
+                    {owner && (
+                      <span
+                        className="text-[10px] font-black text-white px-2 py-0.5 rounded shrink-0"
+                        style={{ backgroundColor: owner.primary }}
+                        title={`Rostered by ${owner.name}`}
+                      >
+                        {owner.abbrev}
+                      </span>
+                    )}
+                  </button>
+                );
+              }
+              // Rostered mode: rich row with stats
               return (
                 <button
                   key={p.id}
                   onClick={() => openPlayer(p.id)}
-                  className="w-full text-left flex items-center gap-4 px-5 py-3 border-b border-gray-100 last:border-0 hover:bg-blue-50/50 transition-colors"
+                  className="w-full text-left grid grid-cols-12 items-center gap-2 px-5 py-3 border-b border-gray-100 last:border-0 hover:bg-blue-50/50 transition-colors"
                 >
-                  <span className="inline-block px-2 py-0.5 bg-gray-100 text-gray-700 text-xs font-bold rounded w-12 text-center shrink-0">
-                    {p.pos}
-                  </span>
-                  <span className="font-bold text-gray-900 flex-1 hover:text-blue-700">{p.name}</span>
-                  <span className="text-sm text-gray-500">{p.team}</span>
-                  {owner && (
-                    <span
-                      className="text-[10px] font-black text-white px-2 py-0.5 rounded shrink-0"
-                      style={{ backgroundColor: owner.primary }}
-                      title={`Rostered by ${owner.name}`}
-                    >
-                      {owner.abbrev}
+                  <div className="col-span-5 flex items-center gap-3 min-w-0">
+                    <span className="inline-block px-2 py-0.5 bg-gray-100 text-gray-700 text-[10px] font-bold rounded w-10 text-center shrink-0">
+                      {p.pos}
                     </span>
-                  )}
+                    <span className="font-bold text-gray-900 truncate hover:text-blue-700">{p.name}</span>
+                  </div>
+                  <div className="col-span-2 flex items-center justify-center gap-2 text-sm">
+                    {owner && (
+                      <span
+                        className="text-[10px] font-black text-white px-2 py-0.5 rounded shrink-0"
+                        style={{ backgroundColor: owner.primary }}
+                        title={`Rostered by ${owner.name}`}
+                      >
+                        {owner.abbrev}
+                      </span>
+                    )}
+                    <span className="text-gray-500 text-xs hidden md:inline">{p.team}</span>
+                  </div>
+                  <span className="col-span-2 text-right font-display font-black text-gray-900">
+                    {p.totalPts ? p.totalPts.toFixed(1) : '—'}
+                  </span>
+                  <span className="col-span-1 text-right text-sm text-gray-600">{p.games || '—'}</span>
+                  <span className="col-span-1 text-right text-sm text-gray-700 font-semibold">
+                    {p.avg ? p.avg.toFixed(1) : '—'}
+                  </span>
+                  <span className="col-span-1 text-right text-sm text-gray-700 font-semibold">
+                    {p.avgStart ? p.avgStart.toFixed(1) : '—'}
+                  </span>
                 </button>
               );
             })}
@@ -2344,10 +2547,17 @@ function MatchupDetailPage({ matchupKey, data, setPage, setActiveTeam, openPlaye
                   {[...h2h].reverse().map((m, i) => {
                     const isThisOne = m.season === matchSeason && m.week === matchWeek;
                     const aMore = m.myPoints > m.oppPoints;
+                    const handleClick = !isThisOne && openMatchup
+                      ? () => openMatchup({ season: m.season, week: m.week, ownerA, ownerB })
+                      : undefined;
+                    const Wrapper = handleClick ? 'button' : 'div';
                     return (
-                      <div
+                      <Wrapper
                         key={i}
-                        className={`flex items-center gap-2 py-1.5 text-sm ${isThisOne ? 'bg-blue-50 rounded-lg px-2 -mx-2' : ''}`}
+                        onClick={handleClick}
+                        className={`w-full flex items-center gap-2 py-1.5 text-sm ${
+                          isThisOne ? 'bg-blue-50 rounded-lg px-2 -mx-2' : ''
+                        } ${handleClick ? 'hover:bg-gray-50 rounded-lg px-2 -mx-2 transition-colors cursor-pointer text-left' : ''}`}
                       >
                         <span className="text-xs text-gray-400 font-bold w-20 shrink-0">{m.season} · Wk {m.week}</span>
                         <span className={`font-bold text-right flex-1 truncate ${aMore ? 'text-gray-900' : 'text-gray-500'}`}>{teamA.name}</span>
@@ -2355,7 +2565,7 @@ function MatchupDetailPage({ matchupKey, data, setPage, setActiveTeam, openPlaye
                         <span className="text-gray-300">·</span>
                         <span className={`font-display font-black w-12 ${!aMore ? 'text-gray-900' : 'text-gray-400'}`}>{m.oppPoints?.toFixed(1)}</span>
                         <span className={`font-bold flex-1 truncate ${!aMore ? 'text-gray-900' : 'text-gray-500'}`}>{teamB.name}</span>
-                      </div>
+                      </Wrapper>
                     );
                   })}
                 </div>
@@ -2491,6 +2701,8 @@ function PlayerPage({ playerId, data, setPage, setActiveTeam }) {
   const [stats, setStats] = useState({ loading: true, error: false, data: null });
   // Past-season stats — one entry per past season
   const [pastStats, setPastStats] = useState({ loading: true, data: [] });
+  // Starter game log expansion (show 5 by default)
+  const [showAllStarterGames, setShowAllStarterGames] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -2912,6 +3124,37 @@ function PlayerPage({ playerId, data, setPage, setActiveTeam }) {
                     </div>
                   </div>
                 )}
+
+                {/* All starts game log — first 5, expandable */}
+                <div className="mt-6 pt-4 border-t border-gray-100">
+                  <h3 className="text-xs font-black text-gray-500 uppercase tracking-widest mb-2">All Starts ({realGames.length})</h3>
+                  <div className="space-y-1">
+                    {[...realGames].reverse().slice(0, showAllStarterGames ? realGames.length : 5).map((g, i) => {
+                      const isBest = bestGame && g.season === bestGame.season && g.week === bestGame.week;
+                      const isWorst = worstGame && g.season === worstGame.season && g.week === worstGame.week;
+                      return (
+                        <div
+                          key={`${g.season}-${g.week}-${i}`}
+                          className="flex items-center gap-3 py-1.5 text-sm border-b border-gray-50 last:border-0"
+                        >
+                          <span className="text-xs text-gray-400 font-bold w-20 shrink-0">{g.season} · Wk {g.week}</span>
+                          <span className="text-gray-700 truncate flex-1">{g.teamName}</span>
+                          {isBest && <span className="text-[10px] font-black text-green-700 bg-green-50 px-1.5 py-0.5 rounded">BEST</span>}
+                          {isWorst && <span className="text-[10px] font-black text-red-700 bg-red-50 px-1.5 py-0.5 rounded">WORST</span>}
+                          <span className="font-display font-black text-gray-900 w-12 text-right shrink-0">{g.points.toFixed(1)}</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                  {realGames.length > 5 && (
+                    <button
+                      onClick={() => setShowAllStarterGames(!showAllStarterGames)}
+                      className="mt-3 text-sm font-bold text-blue-700 hover:text-blue-900"
+                    >
+                      {showAllStarterGames ? 'Show fewer ▲' : `Show all ${realGames.length} starts ▼`}
+                    </button>
+                  )}
+                </div>
               </div>
             )}
 
