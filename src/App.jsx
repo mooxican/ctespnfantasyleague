@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, ReferenceLine } from 'recharts';
 
 // ============ SLEEPER LEAGUE CONFIG ============
@@ -2176,13 +2176,73 @@ function SeasonHistoryCard({ season, players, openMatchup, goToTeam }) {
 }
 
 // ============ PLAYERS PAGE (searchable database) ============
+// Sortable column header used by PlayersPage table.
+// Shows a colored triangle indicating sort direction when this is the active column.
+function SortableHeader({ colSpan, label, sortKey, sortBy, sortDir, onClick, align }) {
+  const active = sortBy === sortKey;
+  const justify = align === 'right' ? 'justify-end' : align === 'center' ? 'justify-center' : 'justify-start';
+  // Explicit class strings so Tailwind's JIT compiler picks them up at build time
+  const COL_SPAN = { 1: 'col-span-1', 2: 'col-span-2', 3: 'col-span-3', 4: 'col-span-4', 5: 'col-span-5', 6: 'col-span-6' };
+  return (
+    <button
+      onClick={() => onClick(sortKey)}
+      className={`${COL_SPAN[colSpan] || 'col-span-1'} flex items-center gap-1 ${justify} px-3 py-2 text-xs font-bold uppercase tracking-wider transition-colors ${
+        active ? 'text-blue-700' : 'text-gray-500 hover:text-gray-900'
+      }`}
+    >
+      <span>{label}</span>
+      <span className={`text-[10px] leading-none ${active ? 'text-blue-700' : 'text-gray-300'}`}>
+        {active ? (sortDir === 'desc' ? '▼' : '▲') : '▾'}
+      </span>
+    </button>
+  );
+}
+
 function PlayersPage({ data, openPlayer }) {
   const { players, teams, season, matchupsByWeek, history } = data;
   const [query, setQuery] = useState('');
   const [posFilter, setPosFilter] = useState('ALL');
-  const [teamFilter, setTeamFilter] = useState('ALL'); // team.id or 'ALL'
+  // Multi-select team filter: Set of team IDs. Empty set = no team filtering.
+  const [teamFilterSet, setTeamFilterSet] = useState(() => new Set());
+  const [teamDropdownOpen, setTeamDropdownOpen] = useState(false);
   const [mode, setMode] = useState('rostered'); // 'rostered' or 'all'
+  // Sort: column key + direction. Default = highest total points first.
   const [sortBy, setSortBy] = useState('total'); // 'total' | 'avg' | 'avgStart' | 'started' | 'name'
+  const [sortDir, setSortDir] = useState('desc'); // 'asc' | 'desc'
+
+  // Close the team-filter dropdown when clicking outside
+  const teamDropdownRef = useRef(null);
+  useEffect(() => {
+    if (!teamDropdownOpen) return;
+    const onClick = (e) => {
+      if (teamDropdownRef.current && !teamDropdownRef.current.contains(e.target)) {
+        setTeamDropdownOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', onClick);
+    return () => document.removeEventListener('mousedown', onClick);
+  }, [teamDropdownOpen]);
+
+  // Toggle one team in/out of the filter set
+  const toggleTeamFilter = (teamId) => {
+    setTeamFilterSet(prev => {
+      const next = new Set(prev);
+      if (next.has(teamId)) next.delete(teamId);
+      else next.add(teamId);
+      return next;
+    });
+  };
+
+  // Click a column header: toggle direction if same column, else select & default desc
+  const onSortClick = (key) => {
+    if (sortBy === key) {
+      setSortDir(d => d === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortBy(key);
+      // Name defaults to ascending (A-Z); everything else defaults to descending
+      setSortDir(key === 'name' ? 'asc' : 'desc');
+    }
+  };
 
   // Set of player IDs rostered anywhere in the league, for the "rostered" badge
   const rosteredIds = new Set();
@@ -2257,10 +2317,10 @@ function PlayersPage({ data, openPlayer }) {
         const name = p.full_name || `${p.first_name || ''} ${p.last_name || ''}`.trim() || pid;
         if (q.length >= 2 && !name.toLowerCase().includes(q)) return null;
         if (posFilter !== 'ALL' && p.position !== posFilter) return null;
-        // Team filter: check which league team rosters this player
-        if (teamFilter !== 'ALL') {
+        // Team filter (multi-select): empty set = no filter; otherwise must be in set
+        if (teamFilterSet.size > 0) {
           const ownerTeam = rosterOwner[pid];
-          if (!ownerTeam || ownerTeam.id !== teamFilter) return null;
+          if (!ownerTeam || !teamFilterSet.has(ownerTeam.id)) return null;
         }
         const stats = rosteredStats.data[pid];
         const starter = starterTotals[pid];
@@ -2278,12 +2338,14 @@ function PlayersPage({ data, openPlayer }) {
       })
       .filter(Boolean)
       .sort((a, b) => {
-        if (sortBy === 'name') return a.name.localeCompare(b.name);
-        if (sortBy === 'avg') return b.avg - a.avg;
-        if (sortBy === 'avgStart') return b.avgStart - a.avgStart;
-        if (sortBy === 'started') return b.startCount - a.startCount;
-        // default: total points
-        return b.totalPts - a.totalPts;
+        // Pick comparator value based on column; flip sign for direction
+        let cmp;
+        if (sortBy === 'name') cmp = a.name.localeCompare(b.name);
+        else if (sortBy === 'avg') cmp = b.avg - a.avg;
+        else if (sortBy === 'avgStart') cmp = b.avgStart - a.avgStart;
+        else if (sortBy === 'started') cmp = b.startCount - a.startCount;
+        else cmp = b.totalPts - a.totalPts; // 'total' (default)
+        return sortDir === 'asc' ? -cmp : cmp;
       });
   } else {
     // All players mode — require search, sort alphabetically (no stats available)
@@ -2311,21 +2373,13 @@ function PlayersPage({ data, openPlayer }) {
     }
   }
 
-  const SORT_LABEL = {
-    total: 'Total PPR',
-    avg: 'Avg / Game',
-    avgStart: 'Avg / Start',
-    started: 'Games Started',
-    name: 'Name (A-Z)',
-  };
-
   return (
     <div className="bg-gray-50 min-h-screen">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 py-10">
         <h1 className="text-4xl sm:text-5xl font-display font-black text-gray-900 tracking-tight mb-2">PLAYERS</h1>
         <p className="text-gray-600 mb-6">
           {mode === 'rostered'
-            ? `All ${rosteredIds.size} rostered players in the league, ranked by ${SORT_LABEL[sortBy]}.`
+            ? `All ${rosteredIds.size} rostered players in the league. Click a column header to sort.`
             : 'Search the full NFL player database. Rostered players are marked.'}
         </p>
 
@@ -2367,43 +2421,79 @@ function PlayersPage({ data, openPlayer }) {
           ))}
         </div>
 
-        {/* Team filter (rostered mode only) */}
-        {mode === 'rostered' && (
-          <div className="flex items-center gap-2 mb-4 flex-wrap">
-            <span className="text-xs font-black text-gray-500 uppercase tracking-widest mr-1 w-28 shrink-0">Filter by Team:</span>
-            <button onClick={() => setTeamFilter('ALL')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-colors ${
-                teamFilter === 'ALL' ? 'bg-blue-700 text-white' : 'bg-white text-gray-700 hover:bg-gray-100 border border-gray-200'
-              }`}>
-              ALL
-            </button>
-            {teams.map(t => (
-              <button key={t.id} onClick={() => setTeamFilter(t.id)}
-                title={t.name}
-                className={`flex items-center gap-1.5 px-2 py-1 rounded-lg text-xs font-bold transition-colors ${
-                  teamFilter === t.id ? 'bg-gray-900 text-white' : 'bg-white text-gray-700 hover:bg-gray-100 border border-gray-200'
-                }`}>
-                <span className="w-5 h-5 flex items-center justify-center font-black text-white text-[9px] rounded shrink-0" style={{ backgroundColor: t.primary }}>
-                  {t.abbrev}
-                </span>
-                <span className="hidden md:inline">{t.name}</span>
-              </button>
-            ))}
-          </div>
-        )}
-
-        {/* Sort options (rostered mode only) */}
+        {/* Team filter dropdown (rostered mode only) */}
         {mode === 'rostered' && (
           <div className="flex items-center gap-2 mb-8 flex-wrap">
-            <span className="text-xs font-black text-gray-500 uppercase tracking-widest mr-1 w-28 shrink-0">Sort by:</span>
-            {Object.entries(SORT_LABEL).map(([key, label]) => (
-              <button key={key} onClick={() => setSortBy(key)}
-                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-colors ${
-                  sortBy === key ? 'bg-gray-900 text-white' : 'bg-white text-gray-700 hover:bg-gray-100 border border-gray-200'
-                }`}>
-                {label}
+            <span className="text-xs font-black text-gray-500 uppercase tracking-widest mr-1 w-28 shrink-0">Filter by Team:</span>
+            <div className="relative" ref={teamDropdownRef}>
+              <button
+                onClick={() => setTeamDropdownOpen(o => !o)}
+                className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-bold border transition-colors ${
+                  teamFilterSet.size > 0 ? 'bg-gray-900 text-white border-gray-900' : 'bg-white text-gray-700 hover:bg-gray-100 border-gray-200'
+                }`}
+              >
+                <span>
+                  {teamFilterSet.size === 0
+                    ? 'All teams'
+                    : teamFilterSet.size === 1
+                      ? teams.find(t => teamFilterSet.has(t.id))?.name || '1 team'
+                      : `${teamFilterSet.size} teams`}
+                </span>
+                <span className="text-[10px]">{teamDropdownOpen ? '▲' : '▼'}</span>
               </button>
-            ))}
+              {teamDropdownOpen && (
+                <div className="absolute left-0 top-full mt-1 z-50 bg-white border border-gray-200 rounded-xl shadow-xl w-72 overflow-hidden">
+                  <div className="flex items-center justify-between px-3 py-2 border-b border-gray-100 bg-gray-50">
+                    <button onClick={() => setTeamFilterSet(new Set(teams.map(t => t.id)))}
+                      className="text-xs font-bold text-blue-700 hover:text-blue-900">
+                      Select all
+                    </button>
+                    <button onClick={() => setTeamFilterSet(new Set())}
+                      className="text-xs font-bold text-gray-500 hover:text-gray-900">
+                      Clear
+                    </button>
+                  </div>
+                  <div className="max-h-72 overflow-y-auto">
+                    {teams.map(t => {
+                      const checked = teamFilterSet.has(t.id);
+                      return (
+                        <button
+                          key={t.id}
+                          onClick={() => toggleTeamFilter(t.id)}
+                          className="w-full text-left flex items-center gap-3 px-3 py-2 hover:bg-blue-50 transition-colors"
+                        >
+                          <span className={`w-4 h-4 flex items-center justify-center rounded border-2 shrink-0 ${
+                            checked ? 'bg-blue-700 border-blue-700' : 'border-gray-300 bg-white'
+                          }`}>
+                            {checked && <span className="text-white text-[10px] font-black leading-none">✓</span>}
+                          </span>
+                          <span className="w-6 h-6 flex items-center justify-center font-black text-white text-[10px] rounded shrink-0" style={{ backgroundColor: t.primary }}>
+                            {t.abbrev}
+                          </span>
+                          <span className="text-sm font-bold text-gray-900 truncate flex-1">{t.name}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+            </div>
+            {/* Chips showing currently selected teams */}
+            {teamFilterSet.size > 0 && teamFilterSet.size <= 3 && (
+              <div className="flex items-center gap-1.5 flex-wrap">
+                {teams.filter(t => teamFilterSet.has(t.id)).map(t => (
+                  <button key={t.id} onClick={() => toggleTeamFilter(t.id)}
+                    title="Remove from filter"
+                    className="flex items-center gap-1.5 px-2 py-1 rounded-lg text-xs font-bold bg-gray-100 hover:bg-gray-200 transition-colors">
+                    <span className="w-4 h-4 flex items-center justify-center font-black text-white text-[8px] rounded shrink-0" style={{ backgroundColor: t.primary }}>
+                      {t.abbrev}
+                    </span>
+                    <span className="text-gray-700">{t.name}</span>
+                    <span className="text-gray-400 ml-0.5">×</span>
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
         )}
         {mode === 'all' && <div className="mb-8" />}
@@ -2426,15 +2516,15 @@ function PlayersPage({ data, openPlayer }) {
           </div>
         ) : (
           <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-            {/* Column headers (rostered mode) */}
+            {/* Column headers (rostered mode) — click to sort */}
             {mode === 'rostered' && (
-              <div className="hidden sm:grid grid-cols-12 text-xs font-bold text-gray-500 uppercase tracking-wider px-5 py-2 border-b border-gray-200 bg-gray-50">
-                <span className="col-span-5">Player</span>
-                <span className="col-span-2 text-center">Team</span>
-                <span className="col-span-2 text-right">Total Pts</span>
-                <span className="col-span-1 text-right">Starts</span>
-                <span className="col-span-1 text-right">Avg</span>
-                <span className="col-span-1 text-right">Avg/Start</span>
+              <div className="hidden sm:grid grid-cols-12 text-xs font-bold text-gray-500 uppercase tracking-wider border-b border-gray-200 bg-gray-50">
+                <SortableHeader colSpan={5} label="Player" sortKey="name" sortBy={sortBy} sortDir={sortDir} onClick={onSortClick} align="left" />
+                <span className="col-span-2 text-center px-3 py-2">Team</span>
+                <SortableHeader colSpan={2} label="Total Pts" sortKey="total" sortBy={sortBy} sortDir={sortDir} onClick={onSortClick} align="right" />
+                <SortableHeader colSpan={1} label="Starts" sortKey="started" sortBy={sortBy} sortDir={sortDir} onClick={onSortClick} align="right" />
+                <SortableHeader colSpan={1} label="Avg" sortKey="avg" sortBy={sortBy} sortDir={sortDir} onClick={onSortClick} align="right" />
+                <SortableHeader colSpan={1} label="Avg/Start" sortKey="avgStart" sortBy={sortBy} sortDir={sortDir} onClick={onSortClick} align="right" />
               </div>
             )}
             {results.map(p => {
