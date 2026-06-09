@@ -747,7 +747,7 @@ function MatchupsPage({ data, openMatchup }) {
 }
 
 // ============ STANDINGS PAGE ============
-function StandingsPage({ data, setPage, setActiveTeam }) {
+function StandingsPage({ data, setPage, setActiveTeam, goToTeamHub }) {
   const { teams } = data;
 
   return (
@@ -767,7 +767,7 @@ function StandingsPage({ data, setPage, setActiveTeam }) {
           {teams.map((t, i) => (
             <button
               key={t.id}
-              onClick={() => { setActiveTeam(t.id); setPage('TeamHub'); window.scrollTo(0, 0); }}
+              onClick={() => goToTeamHub(t.id)}
               className="w-full text-left grid grid-cols-12 items-center px-4 py-3 border-b border-gray-100 last:border-0 hover:bg-blue-50/50 transition-colors"
             >
               <span className="col-span-1 text-gray-400 font-bold text-sm">{i + 1}</span>
@@ -792,7 +792,7 @@ function StandingsPage({ data, setPage, setActiveTeam }) {
 }
 
 // ============ TEAMS PAGE ============
-function TeamsPage({ data, setPage, setActiveTeam }) {
+function TeamsPage({ data, setPage, setActiveTeam, goToTeamHub }) {
   const { teams } = data;
 
   return (
@@ -803,7 +803,7 @@ function TeamsPage({ data, setPage, setActiveTeam }) {
 
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
           {teams.map(t => (
-            <button key={t.id} onClick={() => { setActiveTeam(t.id); setPage('TeamHub'); }}
+            <button key={t.id} onClick={() => goToTeamHub(t.id)}
               className="relative overflow-hidden rounded-xl shadow-sm hover:shadow-xl cursor-pointer transition-all group text-left"
               style={{ backgroundColor: t.primary }}>
               <div className="p-6 h-40 flex flex-col justify-between">
@@ -826,7 +826,7 @@ function TeamsPage({ data, setPage, setActiveTeam }) {
 }
 
 // ============ TEAM HUB ============
-function TeamHubPage({ teamId, data, setPage, openPlayer }) {
+function TeamHubPage({ teamId, data, setPage, openPlayer, goBack, canGoBack }) {
   const [tab, setTab] = useState('Overview');
   const { teams, players, matchupsByWeek, currentWeek, history } = data;
   const team = teams.find(t => t.id === teamId);
@@ -845,7 +845,9 @@ function TeamHubPage({ teamId, data, setPage, openPlayer }) {
           {team.abbrev}
         </div>
         <div className="relative max-w-7xl mx-auto px-4 sm:px-6 py-10">
-          <button onClick={() => setPage('Teams')} className="text-white/80 hover:text-white text-sm font-bold mb-4">← All Teams</button>
+          <button onClick={() => canGoBack ? goBack() : setPage('Teams')} className="text-white/80 hover:text-white text-sm font-bold mb-4">
+            ← {canGoBack ? 'Back' : 'All Teams'}
+          </button>
           <div className="text-white/80 font-semibold text-sm">{team.owner}</div>
           <h1 className="text-4xl sm:text-6xl font-display font-black text-white tracking-tight leading-tight">{team.name}</h1>
           <div className="flex gap-4 mt-3 text-white/90 font-bold text-sm">
@@ -1212,7 +1214,7 @@ function TeamSchedule({ team, teams, matchupsByWeek, currentWeek }) {
 }
 
 // ============ TRANSACTIONS PAGE ============
-function TransactionsPage({ data, setPage, setActiveTeam, openPlayer }) {
+function TransactionsPage({ data, setPage, setActiveTeam, openPlayer, goToTeamHub }) {
   const { teams, players, transactions } = data;
   const [filter, setFilter] = useState('all');
 
@@ -1220,12 +1222,10 @@ function TransactionsPage({ data, setPage, setActiveTeam, openPlayer }) {
   const teamByRoster = {};
   teams.forEach(t => { teamByRoster[t.rosterId] = t; });
 
-  // Navigate to a team's hub page
+  // Navigate to a team's hub page (uses App-level history-aware helper)
   const goToTeam = (team) => {
     if (!team) return;
-    setActiveTeam(team.id);
-    setPage('TeamHub');
-    window.scrollTo(0, 0);
+    goToTeamHub(team.id);
   };
 
   const playerName = (pid) => {
@@ -1466,7 +1466,7 @@ function NewsPage({ openArticle }) {
 }
 
 // ============ ARTICLE PAGE (full reading view) ============
-function ArticlePage({ articleId, data, setPage, setActiveTeam }) {
+function ArticlePage({ articleId, data, setPage, setActiveTeam, goBack, canGoBack, goToTeamHub }) {
   const article = articles.find(a => a.id === articleId);
   if (!article) return null;
 
@@ -1480,8 +1480,8 @@ function ArticlePage({ articleId, data, setPage, setActiveTeam }) {
   return (
     <div className="bg-gray-50 min-h-screen">
       <div className="max-w-3xl mx-auto px-4 sm:px-6 py-10">
-        <button onClick={() => setPage('News')} className="text-blue-700 hover:text-blue-900 text-sm font-bold mb-6">
-          ← Back to News
+        <button onClick={() => canGoBack ? goBack() : setPage('News')} className="text-blue-700 hover:text-blue-900 text-sm font-bold mb-6">
+          ← {canGoBack ? 'Back' : 'Back to News'}
         </button>
 
         <span className="inline-block px-2 py-0.5 bg-blue-700 text-white text-xs font-black tracking-widest rounded">
@@ -1510,7 +1510,7 @@ function ArticlePage({ articleId, data, setPage, setActiveTeam }) {
               {linkedTeams.map(team => (
                 <button
                   key={team.id}
-                  onClick={() => { setActiveTeam(team.id); setPage('TeamHub'); }}
+                  onClick={() => goToTeamHub(team.id)}
                   className="flex items-center gap-3 pl-2 pr-4 py-2 rounded-lg text-white font-bold hover:opacity-90 transition-opacity"
                   style={{ backgroundColor: team.primary }}
                 >
@@ -1530,17 +1530,13 @@ function ArticlePage({ articleId, data, setPage, setActiveTeam }) {
 }
 
 // ============ RECORDS / HALL OF FAME PAGE ============
-function RecordsPage({ data, setPage, setActiveTeam, openMatchup }) {
+function RecordsPage({ data, setPage, setActiveTeam, openMatchup, goToTeamHub }) {
   const { teams, history, matchupsByWeek, season } = data;
 
   // Helper: navigate to a manager's current team hub (matched by owner display name)
   const goToTeam = (ownerName) => {
     const t = teams.find(t => t.owner === ownerName);
-    if (t) {
-      setActiveTeam(t.id);
-      setPage('TeamHub');
-      window.scrollTo(0, 0);
-    }
+    if (t) goToTeamHub(t.id);
   };
 
   // Build a unified list of every played matchup across all seasons.
@@ -1818,17 +1814,13 @@ function RecordRow({ label, value, detail, accent, onClick }) {
 }
 
 // ============ HISTORY PAGE ============
-function HistoryPage({ data, setPage, setActiveTeam, openMatchup }) {
+function HistoryPage({ data, setPage, setActiveTeam, openMatchup, goToTeamHub }) {
   const { history, players, teams } = data;
 
   // Look up the current team for a past-season owner (managers persist by display name)
   const goToTeam = (ownerName) => {
     const currentTeam = teams.find(t => t.owner === ownerName);
-    if (currentTeam) {
-      setActiveTeam(currentTeam.id);
-      setPage('TeamHub');
-      window.scrollTo(0, 0);
-    }
+    if (currentTeam) goToTeamHub(currentTeam.id);
   };
 
   if (!history || history.length === 0) {
@@ -2676,14 +2668,16 @@ function collectAllMatchupsForOwner(ownerName, data) {
   return collected;
 }
 
-function MatchupDetailPage({ matchupKey, data, setPage, setActiveTeam, openPlayer, openMatchup }) {
+function MatchupDetailPage({ matchupKey, data, setPage, setActiveTeam, openPlayer, openMatchup, goBack, canGoBack, goToTeamHub }) {
   // matchupKey shape: { season, week, ownerA, ownerB, fromCurrentSeason }
   if (!matchupKey) {
     return (
       <div className="bg-gray-50 min-h-screen">
         <div className="max-w-3xl mx-auto px-4 sm:px-6 py-20 text-center">
           <h1 className="text-2xl font-display font-black text-gray-900 mb-2">Matchup not found</h1>
-          <button onClick={() => setPage('Matchups')} className="text-blue-700 font-bold">← Back to Matchups</button>
+          <button onClick={() => canGoBack ? goBack() : setPage('Matchups')} className="text-blue-700 font-bold">
+            ← {canGoBack ? 'Back' : 'Back to Matchups'}
+          </button>
         </div>
       </div>
     );
@@ -2764,15 +2758,15 @@ function MatchupDetailPage({ matchupKey, data, setPage, setActiveTeam, openPlaye
       {/* Header */}
       <div className="bg-gradient-to-br from-blue-900 to-blue-950 text-white">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 py-6">
-          <button onClick={() => setPage('Matchups')} className="text-blue-200 hover:text-white text-sm font-bold mb-3">
-            ← Back to Matchups
+          <button onClick={() => canGoBack ? goBack() : setPage('Matchups')} className="text-blue-200 hover:text-white text-sm font-bold mb-3">
+            ← {canGoBack ? 'Back' : 'Back to Matchups'}
           </button>
           <div className="text-blue-200 text-xs font-bold tracking-widest mb-2">
             {matchSeason} · WEEK {matchWeek}{!played ? ' · UPCOMING' : ''}
           </div>
           <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-4">
             <button
-              onClick={() => { setActiveTeam(teamA.id); setPage('TeamHub'); window.scrollTo(0, 0); }}
+              onClick={() => goToTeamHub(teamA.id)}
               className="text-left flex items-center gap-3 min-w-0 hover:opacity-80 transition-opacity"
             >
               <span className="w-12 h-12 flex items-center justify-center font-black text-white rounded shrink-0" style={{ backgroundColor: teamA.primary }}>
@@ -2795,7 +2789,7 @@ function MatchupDetailPage({ matchupKey, data, setPage, setActiveTeam, openPlaye
               </div>
             </div>
             <button
-              onClick={() => { setActiveTeam(teamB.id); setPage('TeamHub'); window.scrollTo(0, 0); }}
+              onClick={() => goToTeamHub(teamB.id)}
               className="text-right flex items-center gap-3 justify-end min-w-0 hover:opacity-80 transition-opacity"
             >
               <div className="min-w-0 text-right">
@@ -3013,7 +3007,7 @@ function PlayerHeadshot({ player, playerId }) {
 }
 
 // ============ PLAYER PAGE ============
-function PlayerPage({ playerId, data, setPage, setActiveTeam }) {
+function PlayerPage({ playerId, data, setPage, setActiveTeam, goBack, canGoBack, goToTeamHub }) {
   const { players, teams, season, transactions, history, draftPicks, matchupsByWeek } = data;
   const player = players[playerId];
 
@@ -3069,7 +3063,9 @@ function PlayerPage({ playerId, data, setPage, setActiveTeam }) {
       <div className="bg-gray-50 min-h-screen">
         <div className="max-w-3xl mx-auto px-4 sm:px-6 py-20 text-center">
           <h1 className="text-2xl font-display font-black text-gray-900 mb-2">Player not found</h1>
-          <button onClick={() => setPage('Teams')} className="text-blue-700 font-bold">← Back to Teams</button>
+          <button onClick={() => canGoBack ? goBack() : setPage('Teams')} className="text-blue-700 font-bold">
+            ← {canGoBack ? 'Back' : 'Back to Teams'}
+          </button>
         </div>
       </div>
     );
@@ -3267,8 +3263,8 @@ function PlayerPage({ playerId, data, setPage, setActiveTeam }) {
           {player.position || ''}
         </div>
         <div className="relative max-w-7xl mx-auto px-4 sm:px-6 py-10">
-          <button onClick={() => setPage('Teams')} className="text-white/80 hover:text-white text-sm font-bold mb-4">
-            ← Back to Teams
+          <button onClick={() => canGoBack ? goBack() : setPage('Teams')} className="text-white/80 hover:text-white text-sm font-bold mb-4">
+            ← {canGoBack ? 'Back' : 'Back to Teams'}
           </button>
           <div className="flex items-end gap-6">
             <div className="flex-1 min-w-0">
@@ -3335,7 +3331,7 @@ function PlayerPage({ playerId, data, setPage, setActiveTeam }) {
                 {rosteredBy ? (
                   <>
                     <button
-                      onClick={() => { setActiveTeam(rosteredBy.id); setPage('TeamHub'); window.scrollTo(0, 0); }}
+                      onClick={() => goToTeamHub(rosteredBy.id)}
                       className="flex items-center gap-3 w-full text-left rounded-lg p-2 -m-2 hover:bg-gray-50 transition-colors"
                     >
                       <span className="w-10 h-10 flex items-center justify-center font-black text-white text-sm rounded shrink-0" style={{ backgroundColor: rosteredBy.primary }}>
@@ -3607,7 +3603,7 @@ function PlayerPage({ playerId, data, setPage, setActiveTeam }) {
                           <span className="text-green-600 font-black">+</span> Added to{' '}
                           {isCurrentSeason ? (
                             <button
-                              onClick={() => { setActiveTeam(addedTo.id); setPage('TeamHub'); window.scrollTo(0, 0); }}
+                            onClick={() => goToTeamHub(addedTo.id)}
                               className="font-bold text-gray-900 hover:text-blue-700"
                             >
                               {addedTo.name}
@@ -3622,7 +3618,7 @@ function PlayerPage({ playerId, data, setPage, setActiveTeam }) {
                           <span className="text-red-600 font-black">−</span> Dropped from{' '}
                           {isCurrentSeason ? (
                             <button
-                              onClick={() => { setActiveTeam(droppedFrom.id); setPage('TeamHub'); window.scrollTo(0, 0); }}
+                            onClick={() => goToTeamHub(droppedFrom.id)}
                               className="font-bold text-gray-900 hover:text-blue-700"
                             >
                               {droppedFrom.name}
@@ -3651,17 +3647,58 @@ export default function App() {
   const [activeArticle, setActiveArticle] = useState(null);
   const [activePlayer, setActivePlayer] = useState(null);
   const [activeMatchup, setActiveMatchup] = useState(null); // { season, week, ownerA, ownerB }
+  // Navigation history stack — each entry is a full snapshot of where we were.
+  // Pushed when opening a detail view, popped when "Back" is clicked.
+  const [navHistory, setNavHistory] = useState([]);
   const data = useLeagueData();
 
-  // Open an article in the full reading view
+  // Snapshot the current view, used when pushing onto history
+  const currentSnapshot = () => ({
+    page, activeTeam, activeArticle, activePlayer, activeMatchup,
+  });
+
+  // Restore a snapshot (used by goBack)
+  const restoreSnapshot = (snap) => {
+    setPage(snap.page);
+    setActiveTeam(snap.activeTeam);
+    setActiveArticle(snap.activeArticle);
+    setActivePlayer(snap.activePlayer);
+    setActiveMatchup(snap.activeMatchup);
+  };
+
+  // Top-level navigation (used by navbar links) — clears history since
+  // you're starting a fresh navigation thread
+  const goToPage = (newPage) => {
+    setNavHistory([]);
+    setPage(newPage);
+    window.scrollTo(0, 0);
+  };
+
+  // Pop the history stack and restore the previous view
+  const goBack = () => {
+    if (navHistory.length === 0) {
+      // Fallback: no history → go home
+      setPage('Home');
+      window.scrollTo(0, 0);
+      return;
+    }
+    const last = navHistory[navHistory.length - 1];
+    setNavHistory(navHistory.slice(0, -1));
+    restoreSnapshot(last);
+    window.scrollTo(0, 0);
+  };
+
+  // Open an article in the full reading view (pushes current view onto history)
   const openArticle = (id) => {
+    setNavHistory(h => [...h, currentSnapshot()]);
     setActiveArticle(id);
     setPage('Article');
     window.scrollTo(0, 0);
   };
 
-  // Open a player's profile page
+  // Open a player's profile page (pushes current view onto history)
   const openPlayer = (playerId) => {
+    setNavHistory(h => [...h, currentSnapshot()]);
     setActivePlayer(playerId);
     setPage('Player');
     window.scrollTo(0, 0);
@@ -3669,8 +3706,17 @@ export default function App() {
 
   // Open a matchup detail page. Pass { season, week, ownerA, ownerB }.
   const openMatchup = (key) => {
+    setNavHistory(h => [...h, currentSnapshot()]);
     setActiveMatchup(key);
     setPage('MatchupDetail');
+    window.scrollTo(0, 0);
+  };
+
+  // Set the active team and navigate to TeamHub (pushes history)
+  const goToTeamHub = (teamId) => {
+    setNavHistory(h => [...h, currentSnapshot()]);
+    setActiveTeam(teamId);
+    setPage('TeamHub');
     window.scrollTo(0, 0);
   };
 
@@ -3684,7 +3730,7 @@ export default function App() {
       `}</style>
 
       <div className="min-h-screen bg-white text-gray-900 font-sans">
-        <Navbar currentPage={page} setPage={setPage} />
+        <Navbar currentPage={page} setPage={goToPage} />
         {data.usingFallback && !data.loading && (
           <div className="bg-amber-50 border-b border-amber-200 px-4 py-2 text-center text-amber-900 text-sm">
             <strong>Demo Mode</strong> — Sleeper API is blocked in this preview. Run locally to see your real league data.
@@ -3693,19 +3739,19 @@ export default function App() {
         {data.loading ? <LoadingScreen /> :
          data.error ? <ErrorScreen error={data.error} /> :
          <>
-           {page === 'Home' && <HomePage setPage={setPage} data={data} openArticle={openArticle} openMatchup={openMatchup} />}
+           {page === 'Home' && <HomePage setPage={goToPage} data={data} openArticle={openArticle} openMatchup={openMatchup} />}
            {page === 'Matchups' && <MatchupsPage data={data} openMatchup={openMatchup} />}
-           {page === 'Standings' && <StandingsPage data={data} setPage={setPage} setActiveTeam={setActiveTeam} />}
-           {page === 'Transactions' && <TransactionsPage data={data} setPage={setPage} setActiveTeam={setActiveTeam} openPlayer={openPlayer} />}
-           {page === 'Teams' && <TeamsPage data={data} setPage={setPage} setActiveTeam={setActiveTeam} />}
+           {page === 'Standings' && <StandingsPage data={data} setPage={setPage} setActiveTeam={setActiveTeam} goToTeamHub={goToTeamHub} />}
+           {page === 'Transactions' && <TransactionsPage data={data} setPage={setPage} setActiveTeam={setActiveTeam} openPlayer={openPlayer} goToTeamHub={goToTeamHub} />}
+           {page === 'Teams' && <TeamsPage data={data} setPage={setPage} setActiveTeam={setActiveTeam} goToTeamHub={goToTeamHub} />}
            {page === 'Players' && <PlayersPage data={data} openPlayer={openPlayer} />}
-           {page === 'History' && <HistoryPage data={data} setPage={setPage} setActiveTeam={setActiveTeam} openMatchup={openMatchup} />}
-           {page === 'Records' && <RecordsPage data={data} setPage={setPage} setActiveTeam={setActiveTeam} openMatchup={openMatchup} />}
-           {page === 'TeamHub' && <TeamHubPage teamId={activeTeam} data={data} setPage={setPage} openPlayer={openPlayer} />}
+           {page === 'History' && <HistoryPage data={data} setPage={setPage} setActiveTeam={setActiveTeam} openMatchup={openMatchup} goToTeamHub={goToTeamHub} />}
+           {page === 'Records' && <RecordsPage data={data} setPage={setPage} setActiveTeam={setActiveTeam} openMatchup={openMatchup} goToTeamHub={goToTeamHub} />}
+           {page === 'TeamHub' && <TeamHubPage teamId={activeTeam} data={data} setPage={setPage} openPlayer={openPlayer} goBack={goBack} canGoBack={navHistory.length > 0} />}
            {page === 'News' && <NewsPage openArticle={openArticle} />}
-           {page === 'Article' && <ArticlePage articleId={activeArticle} data={data} setPage={setPage} setActiveTeam={setActiveTeam} />}
-           {page === 'Player' && <PlayerPage playerId={activePlayer} data={data} setPage={setPage} setActiveTeam={setActiveTeam} />}
-           {page === 'MatchupDetail' && <MatchupDetailPage matchupKey={activeMatchup} data={data} setPage={setPage} setActiveTeam={setActiveTeam} openPlayer={openPlayer} openMatchup={openMatchup} />}
+           {page === 'Article' && <ArticlePage articleId={activeArticle} data={data} setPage={setPage} setActiveTeam={setActiveTeam} goBack={goBack} canGoBack={navHistory.length > 0} goToTeamHub={goToTeamHub} />}
+           {page === 'Player' && <PlayerPage playerId={activePlayer} data={data} setPage={setPage} setActiveTeam={setActiveTeam} goBack={goBack} canGoBack={navHistory.length > 0} goToTeamHub={goToTeamHub} />}
+           {page === 'MatchupDetail' && <MatchupDetailPage matchupKey={activeMatchup} data={data} setPage={setPage} setActiveTeam={setActiveTeam} openPlayer={openPlayer} openMatchup={openMatchup} goBack={goBack} canGoBack={navHistory.length > 0} goToTeamHub={goToTeamHub} />}
          </>}
         <footer className="bg-blue-950 text-white mt-12">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 py-10">
