@@ -189,10 +189,19 @@ function getTeamLogo(ownerName) {
 const articles = [
   {
     id: 1,
+  date: '2026-06-07',
+    category: 'ROSTER MOVE',
+    title: "Ta Keo releases a QB during their latest roster moves.",
+    excerpt: 'The Titans have released QB Tua Tagovailoa as part of a recent roster move.',
+    image: 'https://statico.profootballnetwork.com/wp-content/uploads/2025/09/07164739/auto-draft-09-07-25-8-1920x1261.jpg',
+    body: "The Ta Keo Titans have released QB Tua Tagovailoa for a second time in two seasons, following roster cuts by General Manager Staten this Sunday.\n\n Tagovailoa did not record a single start for the Titans and was mainly a camp body for this offseason.",
+    teamIds: [5],
+    
+    id: 2,
   date: '2026-06-09',
     category: 'TRADE',
     title: "Olympians trade for TE Dallas Goedert.",
-    excerpt: 'The Olympians have made their second trade this year with the InshallArtetaliban. Read more here.',
+    excerpt: 'The Olympians have made their second trade this year with the InshallArtetaliban.',
     image: 'https://static01.nyt.com/athletic/uploads/wp/2022/10/05224941/GettyImages-1427296541-scaled.jpg',
     body: "The Olympians have completed a trade with the InshallArtetaliban, sending TE Dalton Schultz (HOU) for TE Dallas Goedert (PHI).\n\n Schultz, an undrafted free agent pickup by the Olympians, started six games between weeks 11 and 17 last season, averaging 14.5 points per start. Goedert, on the other hand, started only one game for the Talibanis and sat on the bench for the remainder of the season despite a TE7 finish.\n\n However, the team did send him off with a heartfelt message, reading: 'Everyone at the InshallArtetaliban appreciates Dallas for his commitment to the Bomb Squad and wish him the best in his future endeavors.'\n\n This trade was processed and made official this Tuesday.",
     teamIds: [7, 8],
