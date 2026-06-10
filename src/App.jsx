@@ -129,6 +129,11 @@ function getTeamAbbrev(ownerName, teamName) {
 //  (e.g. /public/logos/kasane.png), then reference them here with paths
 //  like '/logos/kasane.png'.
 //
+//  NOTE: The URLs below are Discord attachment links, which EXPIRE after
+//  a while (see the `ex=` timestamp in each URL). When the logos start
+//  showing as letter badges again, that means the links died — just
+//  re-grab fresh URLs from Discord and replace them here.
+//
 //  - Square images work best (1:1 aspect ratio). 256x256 or 512x512 is plenty.
 //  - PNG with transparency is ideal so the logo doesn't have a hard background.
 //  - Any team without a logo here falls back to the colored letter badge.
@@ -136,14 +141,22 @@ function getTeamAbbrev(ownerName, teamName) {
 //    is used anyway because logos become illegible.
 // =========================================================================
 const TEAM_LOGO_MAP = {
-  // Memeworks:       '/logos/kasane.png',  // Kasane Teto Goon Squad
-  // DomIsBored:      '/logos/gsa.png',     // God, Syria, and Allar
-  // Rlcchamp:        '/logos/wagner.png',  // Wagner Eagles
-  // ANormalPrussian: '/logos/scranton.png', // The Scranton Silly Gals
-  // Realsiib:        '/logos/takeo.png',   // Ta Keo Titans
-  // QuixoteFantasy:  '/logos/hongyuan.png', // Hongyuan Heishous
-  // scelablaze:      '/logos/olympians.png', // Olympians
-  // mooxican:        '/logos/taliban.png',  // InshallArtetaliban
+  // Kasane Teto Goon Squad
+  Memeworks:       'https://media.discordapp.net/attachments/1406426963320770650/1504530029986582558/CTESPN_KTG.png?ex=6a299947&is=6a2847c7&hm=de2e8f8a027441c3b24ecfba399187505d34e380110adf681ce0103070318f05&=&format=webp&quality=lossless&width=931&height=915',
+  // God, Syria, and Allar
+  DomIsBored:      'https://media.discordapp.net/attachments/1406426963320770650/1504530029164499075/CTESPN_GSA.png?ex=6a299947&is=6a2847c7&hm=485265e79e40658e2069fd73fa984f26165b29201dba394d87613bdb13e7ffc8&=&format=webp&quality=lossless&width=1219&height=915',
+  // Wagner Eagles
+  Rlcchamp:        'https://media.discordapp.net/attachments/1406426963320770650/1504530037389660353/CTESPN_WAG.png?ex=6a299949&is=6a2847c9&hm=cc9e2d4be4c4a54ffb688edb65114b2a363e9925612718f1372b2238f7a3621f&=&format=webp&quality=lossless&width=1859&height=908',
+  // The Scranton Silly Gals
+  ANormalPrussian: 'https://media.discordapp.net/attachments/1406426963320770650/1504530036349206688/CTESPN_SCR.png?ex=6a299949&is=6a2847c9&hm=adb5b58c18b68cbcff1ae00bd16f2334d5f09940bbf55eca3bcec7f7ab222d40&=&format=webp&quality=lossless&width=744&height=620',
+  // Ta Keo Titans
+  Realsiib:        'https://media.discordapp.net/attachments/1406426963320770650/1504530037037072566/CTESPN_TKE.png?ex=6a299949&is=6a2847c9&hm=8b70253378b83aa8aef44c0a2d0026e83214d8a98594749feeff764a19015e1d&=&format=webp&quality=lossless&width=500&height=500',
+  // Hongyuan Heishous
+  QuixoteFantasy:  'https://media.discordapp.net/attachments/1406426963320770650/1504530029504368670/CTESPN_HON.png?ex=6a299947&is=6a2847c7&hm=466606ad5c1489710505c352f9bf08b5f14404c9e9c398a1806f08f10270606f&=&format=webp&quality=lossless&width=915&height=915',
+  // Olympians
+  scelablaze:      'https://media.discordapp.net/attachments/1406426963320770650/1504530035883769927/CTESPN_OLY.png?ex=6a299949&is=6a2847c9&hm=83b28ef6e8d818ac5bf799cb46109f6dfac4f6fd0220dd5c52a15e955cdde5bc&=&format=webp&quality=lossless&width=500&height=518',
+  // InshallArtetaliban
+  mooxican:        'https://media.discordapp.net/attachments/1406426963320770650/1504530036739543232/CTESPN_TAL.png?ex=6a299949&is=6a2847c9&hm=29432ea84a3157709379923af22b3453e791cec7c3be4665741c58faebacdc46&=&format=webp&quality=lossless&width=1628&height=915',
 };
 
 // Look up a team's logo URL by owner display name. Returns null if none set.
@@ -180,7 +193,6 @@ const articles = [
     teamIds: [3, 5, 6],
   },
 ];
-
 // Articles sorted newest-first by date. Used across the site.
 const articlesByDate = [...articles].sort((a, b) => new Date(b.date) - new Date(a.date));
 
