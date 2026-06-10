@@ -29,7 +29,6 @@ const SCORE_OVERRIDES = [
   { season: '2025', week: 12, owner: 'QuixoteDrafting', score: 268.5 }, // Scranton Silly Gals — was 103.3
   { season: '2025', week: 13, owner: 'DomIsBored', score: 222.3 }, // Scranton Silly Gals — was 103.3
 ];
-
 // Helper: look up override for a (season, week, ownerName)
 function getOverrideScore(season, week, ownerName) {
   if (!season || !week || !ownerName) return null;
@@ -75,8 +74,10 @@ const TEAM_COLOR_MAP = {
   ANormalPrussian:  { primary: '#d389f1', badge: '#9333ea' },
   // Ta Keo Titans — primary stays mint-teal; badge darkened for legibility
   Realsiib:         { primary: '#1abc9c', badge: '#0d9488' },
+  StatenIsland18:   { primary: '#1abc9c', badge: '#0d9488' },  // alias: same manager, 2025 display name
   // Hongyuan Heishous
   QuixoteFantasy:   { primary: '#4f7425', badge: '#4f7425' },
+  QuixoteDrafting:  { primary: '#4f7425', badge: '#4f7425' },  // alias: same manager, 2025 display name
   // Olympians
   scelablaze:       { primary: '#ff0000', badge: '#ff0000' },
   // InshallArtetaliban
@@ -112,7 +113,9 @@ const TEAM_ABBREV_MAP = {
   Rlcchamp:        'WAG',  // Wagner Eagles
   ANormalPrussian: 'SCR',  // The Scranton Silly Gals
   Realsiib:        'TKE',  // Ta Keo Titans
+  StatenIsland18:  'TKE',  // alias: 2025 display name for Ta Keo Titans
   QuixoteFantasy:  'HON',  // Hongyuan Heishous
+  QuixoteDrafting: 'HON',  // alias: 2025 display name for Hongyuan Heishous
   scelablaze:      'OLY',  // Olympians
   mooxican:        'TAL',  // InshallArtetaliban
 };
@@ -151,8 +154,10 @@ const TEAM_LOGO_MAP = {
   ANormalPrussian: 'https://media.discordapp.net/attachments/1406426963320770650/1504530036349206688/CTESPN_SCR.png?ex=6a299949&is=6a2847c9&hm=adb5b58c18b68cbcff1ae00bd16f2334d5f09940bbf55eca3bcec7f7ab222d40&=&format=webp&quality=lossless&width=744&height=620',
   // Ta Keo Titans
   Realsiib:        'https://media.discordapp.net/attachments/1406426963320770650/1504530037037072566/CTESPN_TKE.png?ex=6a299949&is=6a2847c9&hm=8b70253378b83aa8aef44c0a2d0026e83214d8a98594749feeff764a19015e1d&=&format=webp&quality=lossless&width=500&height=500',
+  StatenIsland18:  'https://media.discordapp.net/attachments/1406426963320770650/1504530037037072566/CTESPN_TKE.png?ex=6a299949&is=6a2847c9&hm=8b70253378b83aa8aef44c0a2d0026e83214d8a98594749feeff764a19015e1d&=&format=webp&quality=lossless&width=500&height=500',  // alias: 2025 display name
   // Hongyuan Heishous
   QuixoteFantasy:  'https://media.discordapp.net/attachments/1406426963320770650/1504530029504368670/CTESPN_HON.png?ex=6a299947&is=6a2847c7&hm=466606ad5c1489710505c352f9bf08b5f14404c9e9c398a1806f08f10270606f&=&format=webp&quality=lossless&width=915&height=915',
+  QuixoteDrafting: 'https://media.discordapp.net/attachments/1406426963320770650/1504530029504368670/CTESPN_HON.png?ex=6a299947&is=6a2847c7&hm=466606ad5c1489710505c352f9bf08b5f14404c9e9c398a1806f08f10270606f&=&format=webp&quality=lossless&width=915&height=915',  // alias: 2025 display name
   // Olympians
   scelablaze:      'https://media.discordapp.net/attachments/1406426963320770650/1504530035883769927/CTESPN_OLY.png?ex=6a299949&is=6a2847c9&hm=83b28ef6e8d818ac5bf799cb46109f6dfac4f6fd0220dd5c52a15e955cdde5bc&=&format=webp&quality=lossless&width=500&height=518',
   // InshallArtetaliban
