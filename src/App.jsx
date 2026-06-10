@@ -184,13 +184,13 @@ function getTeamLogo(ownerName) {
 const articles = [
   {
     id: 1,
-  date: '2026-05-14',
-    category: 'TEST',
-    title: "Test Article",
-    excerpt: 'This is a test of the article system of the CTESPN Dynasty Website.',
-    image: 'https://media.discordapp.net/attachments/1346646791554338949/1504514190608699612/IMG_0912.jpg?ex=6a074387&is=6a05f207&hm=4da17256a1223191cc3f2a4666eac4799264a80b15cea2d05d19168a3df7e814&=&format=webp&width=1255&height=999',
-    body: "This is a test of the article system of the CTESPN Dynasty Website, May 14, 2026.\n\nThis text should appear as normal with all relevant teams and buttons to redirect them. \nHooray!",
-    teamIds: [3, 5, 6],
+  date: '2026-06-09',
+    category: 'TRADE',
+    title: "Olympians trade for TE Dallas Goedert.",
+    excerpt: 'The Olympians have made their second trade this year with the InshallArtetaliban. Read more here.',
+    image: 'https://pbs.twimg.com/media/HKWoatxWUAAIQIw?format=jpg&name=large',
+    body: "The Olympians have completed a trade with the InshallArtetaliban, sending TE Dalton Schultz (HOU) for TE Dallas Goedert (PHI).\n\nSchultz, an undrafted free agent pickup by the Olympians, started six games between weeks 11 and 17 last season, averaging 14.5 points per start. Goedert, on the other hand, started only one game for the Talibanis and sat on the bench for the remainder of the season despite a TE7 finish. \nHowever, the team did send him off with a heartfelt message, reading: \n'Everyone at the InshallArtetaliban appreciates Dallas for his commitment to the Bomb Squad and wish him the best in his future endeavors.' \n\nThis trade was processed and made official this Tuesday.",
+    teamIds: [7, 8],
   },
 ];
 
