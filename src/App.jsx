@@ -188,7 +188,7 @@ const articles = [
     category: 'TRADE',
     title: "Olympians trade for TE Dallas Goedert.",
     excerpt: 'The Olympians have made their second trade this year with the InshallArtetaliban. Read more here.',
-    image: 'https://pbs.twimg.com/media/HKWoatxWUAAIQIw?format=jpg&name=large',
+    image: 'https://static01.nyt.com/athletic/uploads/wp/2022/10/05224941/GettyImages-1427296541-scaled.jpg',
     body: "The Olympians have completed a trade with the InshallArtetaliban, sending TE Dalton Schultz (HOU) for TE Dallas Goedert (PHI).\n\nSchultz, an undrafted free agent pickup by the Olympians, started six games between weeks 11 and 17 last season, averaging 14.5 points per start. Goedert, on the other hand, started only one game for the Talibanis and sat on the bench for the remainder of the season despite a TE7 finish. \nHowever, the team did send him off with a heartfelt message, reading: \n'Everyone at the InshallArtetaliban appreciates Dallas for his commitment to the Bomb Squad and wish him the best in his future endeavors.' \n\nThis trade was processed and made official this Tuesday.",
     teamIds: [7, 8],
   },
