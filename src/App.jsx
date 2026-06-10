@@ -457,9 +457,9 @@ function Navbar({ currentPage, setPage }) {
         <div className="flex justify-between items-center h-16">
           <div onClick={() => setPage('Home')} className="flex items-center gap-2 cursor-pointer">
             {LOGO_URL ? (
-              <img src={LOGO_URL} alt="CTESPN Dynasty League" className="w-10 h-10 object-contain rounded shrink-0" />
+              <img src={LOGO_URL} alt="CTESPN Dynasty League" className="w-10 h-10 object-contain rounded-none shrink-0" />
             ) : (
-              <div className="w-10 h-10 bg-blue-700 flex items-center justify-center font-black text-white text-xl tracking-tighter rounded shrink-0">C</div>
+              <div className="w-10 h-10 bg-blue-700 flex items-center justify-center font-black text-white text-xl tracking-tighter rounded-sm shrink-0">C</div>
             )}
             <span className="text-blue-900 font-display font-black text-lg lg:text-xl tracking-tight hidden sm:block">CTESPN Dynasty League</span>
           </div>
@@ -484,7 +484,7 @@ function Navbar({ currentPage, setPage }) {
           <div className="md:hidden pb-4 flex flex-col gap-1 border-t border-gray-100 pt-2">
             {links.map(link => (
               <button key={link} onClick={() => { setPage(link); setMenuOpen(false); }}
-                className={`text-left px-4 py-3 text-sm font-bold uppercase tracking-wider rounded ${
+                className={`text-left px-4 py-3 text-sm font-bold uppercase tracking-wider rounded-none ${
                   currentPage === link ? 'text-blue-700 bg-blue-50' : 'text-gray-700'
                 }`}>{link}</button>
             ))}
@@ -503,7 +503,7 @@ function MatchupCard({ matchup, isCurrentWeek }) {
   const bWon = scoreB > scoreA;
 
   return (
-    <div className="bg-white border border-gray-200 rounded-lg hover:border-blue-700 hover:shadow-md transition-all">
+    <div className="bg-white border-2 border-gray-200 rounded-none hover:border-blue-700 hover:shadow-md transition-all">
       <div className="px-4 py-2 flex justify-between items-center border-b border-gray-100">
         <span className="text-xs text-gray-500 font-semibold">Matchup</span>
         {isCurrentWeek ? (
@@ -527,7 +527,7 @@ function MatchupTeamRow({ team, score, won }) {
   return (
     <div className="flex justify-between items-center">
       <div className="flex items-center gap-3 min-w-0">
-        <div className="w-8 h-8 flex items-center justify-center font-black text-white text-xs rounded shrink-0" style={{ backgroundColor: team.primary }}>
+        <div className="w-8 h-8 flex items-center justify-center font-black text-white text-xs rounded-sm shrink-0" style={{ backgroundColor: team.primary }}>
           {team.abbrev}
         </div>
         <div className="min-w-0">
@@ -547,7 +547,7 @@ function MatchupColumnRow({ team, score, won }) {
   return (
     <div className="flex items-center justify-between py-0.5">
       <div className="flex items-center gap-2 min-w-0">
-        <div className="w-6 h-6 flex items-center justify-center font-black text-white text-[10px] rounded shrink-0" style={{ backgroundColor: team.primary }}>
+        <div className="w-6 h-6 flex items-center justify-center font-black text-white text-[10px] rounded-sm shrink-0" style={{ backgroundColor: team.primary }}>
           {team.abbrev}
         </div>
         <span className={`text-sm truncate ${won ? 'font-bold text-gray-900' : 'font-semibold text-gray-600'}`}>
@@ -576,7 +576,7 @@ function LoadingScreen() {
 function ErrorScreen({ error }) {
   return (
     <div className="bg-gray-50 min-h-screen flex items-center justify-center px-4">
-      <div className="bg-white p-8 rounded-xl border border-red-200 max-w-md">
+      <div className="bg-white p-8 rounded-none border border-red-200 max-w-md">
         <h2 className="text-xl font-display font-black text-gray-900 mb-2">Couldn't load league</h2>
         <p className="text-gray-600 text-sm">{error}</p>
       </div>
@@ -596,11 +596,11 @@ function HomePage({ setPage, data, openArticle, openMatchup }) {
     <div className="bg-gray-50 min-h-screen">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 py-8">
         <div className="grid lg:grid-cols-3 gap-6 mb-8">
-          <div className="lg:col-span-2 bg-white rounded-xl overflow-hidden shadow-sm border border-gray-200">
+          <div className="lg:col-span-2 bg-white rounded-none overflow-hidden shadow-sm border-2 border-gray-200">
             <div className="grid grid-cols-2 h-80">
               {topTwo[0] && (
                 <div className="relative p-6 flex flex-col justify-end overflow-hidden" style={{ background: `linear-gradient(135deg, ${topTwo[0].primary}, ${topTwo[0].primary}cc)` }}>
-                  <div className="absolute top-4 left-4 w-12 h-12 bg-white/10 backdrop-blur rounded flex items-center justify-center font-black text-white text-sm">
+                  <div className="absolute top-4 left-4 w-12 h-12 bg-white/10 backdrop-blur rounded-none flex items-center justify-center font-black text-white text-sm">
                     {topTwo[0].abbrev}
                   </div>
                   <div className="absolute -right-4 -top-4 text-white/10 text-9xl font-display font-black tracking-tighter">1</div>
@@ -613,7 +613,7 @@ function HomePage({ setPage, data, openArticle, openMatchup }) {
               )}
               {topTwo[1] && (
                 <div className="relative p-6 flex flex-col justify-end overflow-hidden" style={{ background: `linear-gradient(135deg, ${topTwo[1].primary}, ${topTwo[1].primary}cc)` }}>
-                  <div className="absolute top-4 right-4 w-12 h-12 bg-white/10 backdrop-blur rounded flex items-center justify-center font-black text-white text-sm">
+                  <div className="absolute top-4 right-4 w-12 h-12 bg-white/10 backdrop-blur rounded-none flex items-center justify-center font-black text-white text-sm">
                     {topTwo[1].abbrev}
                   </div>
                   <div className="absolute -left-4 -top-4 text-white/10 text-9xl font-display font-black tracking-tighter">2</div>
@@ -626,13 +626,13 @@ function HomePage({ setPage, data, openArticle, openMatchup }) {
               )}
             </div>
             <button onClick={() => openArticle(featured.id)} className="p-6 text-left w-full hover:bg-gray-50 transition-colors">
-              <span className="inline-block px-2 py-0.5 bg-blue-700 text-white text-xs font-black tracking-widest rounded">{featured.category}</span>
+              <span className="inline-block px-2 py-0.5 bg-blue-700 text-white text-xs font-black tracking-widest rounded-none">{featured.category}</span>
               <h1 className="text-2xl sm:text-3xl font-display font-black text-gray-900 leading-tight tracking-tight mt-3 mb-2">{featured.title}</h1>
               <p className="text-gray-600 font-body text-lg leading-relaxed">{featured.excerpt}</p>
             </button>
           </div>
 
-          <div className="bg-white rounded-xl border border-gray-200 shadow-sm">
+          <div className="bg-white rounded-none border-2 border-gray-200 shadow-sm">
             <div className="px-5 py-4 border-b border-gray-200 flex items-center justify-between">
               <button className="text-sm font-display font-black text-gray-900 border-b-2 border-blue-700 pb-1">
                 WEEK {currentWeek} MATCHUPS
@@ -668,7 +668,7 @@ function HomePage({ setPage, data, openArticle, openMatchup }) {
           <h2 className="text-2xl font-display font-black text-gray-900 uppercase tracking-tight mb-4">Latest Stories</h2>
           <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
             {latestThree.map(story => (
-              <button key={story.id} onClick={() => openArticle(story.id)} className="bg-white rounded-xl border border-gray-200 overflow-hidden hover:shadow-md hover:border-blue-700 transition-all cursor-pointer text-left">
+              <button key={story.id} onClick={() => openArticle(story.id)} className="bg-white rounded-none border-2 border-gray-200 overflow-hidden hover:shadow-md hover:border-blue-700 transition-all cursor-pointer text-left">
                 <div className="h-40 bg-gray-100 overflow-hidden">
                   {story.image ? (
                     <img src={story.image} alt={story.title} className="w-full h-full object-cover" />
@@ -717,8 +717,8 @@ function MatchupsPage({ data, openMatchup }) {
         <div className="flex gap-2 mb-8 overflow-x-auto pb-2">
           {weeks.map(w => (
             <button key={w} onClick={() => setWeek(w)}
-              className={`px-4 py-2 rounded-lg text-sm font-bold whitespace-nowrap transition-colors ${
-                w === week ? 'bg-blue-700 text-white' : 'bg-white text-gray-700 hover:bg-gray-100 border border-gray-200'
+              className={`px-4 py-2 rounded-none text-sm font-bold whitespace-nowrap transition-colors ${
+                w === week ? 'bg-blue-700 text-white' : 'bg-white text-gray-700 hover:bg-gray-100 border-2 border-gray-200'
               }`}>
               Week {w}
             </button>
@@ -736,7 +736,7 @@ function MatchupsPage({ data, openMatchup }) {
             </button>
           ))}
           {weekMatchups.length === 0 && (
-            <div className="col-span-full bg-white rounded-xl border border-gray-200 p-8 text-center text-gray-500">
+            <div className="col-span-full bg-white rounded-none border-2 border-gray-200 p-8 text-center text-gray-500">
               No matchup data available for Week {week} yet.
             </div>
           )}
@@ -756,7 +756,7 @@ function StandingsPage({ data, setPage, setActiveTeam, goToTeamHub }) {
         <h1 className="text-4xl sm:text-5xl font-display font-black text-gray-900 tracking-tight mb-2">STANDINGS</h1>
         <p className="text-gray-600 mb-8">League standings sorted by wins, then points for.</p>
 
-        <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+        <div className="bg-white rounded-none border-2 border-gray-200 shadow-sm overflow-hidden">
           <div className="grid grid-cols-12 text-xs font-bold text-gray-500 uppercase tracking-wider px-4 py-3 border-b border-gray-200 bg-gray-50">
             <span className="col-span-1">#</span>
             <span className="col-span-5">Team</span>
@@ -772,7 +772,7 @@ function StandingsPage({ data, setPage, setActiveTeam, goToTeamHub }) {
             >
               <span className="col-span-1 text-gray-400 font-bold text-sm">{i + 1}</span>
               <div className="col-span-5 flex items-center gap-3 min-w-0">
-                <div className="w-7 h-7 flex items-center justify-center font-black text-white text-xs rounded shrink-0" style={{ backgroundColor: t.primary }}>
+                <div className="w-7 h-7 flex items-center justify-center font-black text-white text-xs rounded-sm shrink-0" style={{ backgroundColor: t.primary }}>
                   {t.abbrev}
                 </div>
                 <div className="min-w-0">
@@ -804,7 +804,7 @@ function TeamsPage({ data, setPage, setActiveTeam, goToTeamHub }) {
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
           {teams.map(t => (
             <button key={t.id} onClick={() => goToTeamHub(t.id)}
-              className="relative overflow-hidden rounded-xl shadow-sm hover:shadow-xl cursor-pointer transition-all group text-left"
+              className="relative overflow-hidden rounded-none shadow-sm hover:shadow-xl cursor-pointer transition-all group text-left"
               style={{ backgroundColor: t.primary }}>
               <div className="p-6 h-40 flex flex-col justify-between">
                 <div className="text-white/70 font-bold text-xs tracking-widest">FANTASY</div>
@@ -895,14 +895,14 @@ function TeamHistory({ team, history }) {
 
   if (pastRecords.length === 0) {
     return (
-      <div className="bg-white rounded-xl border border-gray-200 p-8 text-center text-gray-500">
+      <div className="bg-white rounded-none border-2 border-gray-200 p-8 text-center text-gray-500">
         No past-season records found for this manager.
       </div>
     );
   }
 
   return (
-    <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+    <div className="bg-white rounded-none border-2 border-gray-200 overflow-hidden">
       <div className="px-6 py-4 border-b border-gray-200">
         <h2 className="text-xl font-display font-black text-gray-900 uppercase tracking-tight">Past Seasons</h2>
       </div>
@@ -970,7 +970,7 @@ function TeamOverview({ team, teams, matchupsByWeek, currentWeek }) {
     <div className="space-y-6">
       <div className="grid lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2 space-y-6">
-          <div className="bg-white rounded-xl border border-gray-200 p-6">
+          <div className="bg-white rounded-none border-2 border-gray-200 p-6">
             <h2 className="text-xl font-display font-black text-gray-900 mb-4 uppercase tracking-tight">Team Info</h2>
             <div className="grid grid-cols-2 gap-4">
               <InfoStat label="Manager" value={team.owner} />
@@ -979,7 +979,7 @@ function TeamOverview({ team, teams, matchupsByWeek, currentWeek }) {
               <InfoStat label="Win %" value={winPct} />
             </div>
           </div>
-          <div className="bg-white rounded-xl border border-gray-200 p-6">
+          <div className="bg-white rounded-none border-2 border-gray-200 p-6">
             <h2 className="text-xl font-display font-black text-gray-900 mb-4 uppercase tracking-tight">Season Stats</h2>
             <div className="grid grid-cols-4 gap-4 text-center">
               <BigStat label="Wins" value={team.wins} />
@@ -992,7 +992,7 @@ function TeamOverview({ team, teams, matchupsByWeek, currentWeek }) {
       </div>
 
       {/* Points over time */}
-      <div className="bg-white rounded-xl border border-gray-200 p-6">
+      <div className="bg-white rounded-none border-2 border-gray-200 p-6">
         <h2 className="text-xl font-display font-black text-gray-900 mb-4 uppercase tracking-tight">Weekly Scoring</h2>
         {chartData.length === 0 ? (
           <p className="text-sm text-gray-500">No game data yet this season.</p>
@@ -1119,10 +1119,10 @@ function TeamRoster({ team, players, openPlayer }) {
       </div>
 
       {orderedPositions.map(pos => (
-        <div key={pos} className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+        <div key={pos} className="bg-white rounded-none border-2 border-gray-200 overflow-hidden">
           <div className="px-6 py-3 border-b border-gray-200 bg-gray-50 flex items-center gap-3">
             <span
-              className="inline-block px-2.5 py-1 text-xs font-black text-white rounded"
+              className="inline-block px-2.5 py-1 text-xs font-black text-white rounded-none"
               style={{ backgroundColor: team.primary }}
             >
               {pos}
@@ -1178,7 +1178,7 @@ function TeamSchedule({ team, teams, matchupsByWeek, currentWeek }) {
   }).filter(Boolean);
 
   return (
-    <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+    <div className="bg-white rounded-none border-2 border-gray-200 overflow-hidden">
       <div className="px-6 py-4 border-b border-gray-200">
         <h2 className="text-xl font-display font-black text-gray-900 uppercase tracking-tight">Schedule</h2>
       </div>
@@ -1189,7 +1189,7 @@ function TeamSchedule({ team, teams, matchupsByWeek, currentWeek }) {
               <div className="text-xs font-bold text-gray-500 uppercase">Week</div>
               <div className="text-2xl font-display font-black text-gray-900">{r.week}</div>
             </div>
-            <div className="w-12 h-12 rounded flex items-center justify-center font-black text-white text-xs shrink-0" style={{ backgroundColor: r.opp?.primary || '#999' }}>
+            <div className="w-12 h-12 rounded-none flex items-center justify-center font-black text-white text-xs shrink-0" style={{ backgroundColor: r.opp?.primary || '#999' }}>
               {r.opp?.abbrev || '??'}
             </div>
             <div className="flex-1 min-w-0">
@@ -1270,8 +1270,8 @@ function TransactionsPage({ data, setPage, setActiveTeam, openPlayer, goToTeamHu
         <div className="flex gap-2 mb-8 flex-wrap">
           {filters.map(f => (
             <button key={f.key} onClick={() => setFilter(f.key)}
-              className={`px-4 py-2 rounded-lg text-sm font-bold transition-colors ${
-                filter === f.key ? 'bg-blue-700 text-white' : 'bg-white text-gray-700 hover:bg-gray-100 border border-gray-200'
+              className={`px-4 py-2 rounded-none text-sm font-bold transition-colors ${
+                filter === f.key ? 'bg-blue-700 text-white' : 'bg-white text-gray-700 hover:bg-gray-100 border-2 border-gray-200'
               }`}>
               {f.label}
             </button>
@@ -1279,7 +1279,7 @@ function TransactionsPage({ data, setPage, setActiveTeam, openPlayer, goToTeamHu
         </div>
 
         {weekNumbers.length === 0 && (
-          <div className="bg-white rounded-xl border border-gray-200 p-8 text-center text-gray-500">
+          <div className="bg-white rounded-none border-2 border-gray-200 p-8 text-center text-gray-500">
             No {filter === 'all' ? '' : filters.find(f => f.key === filter)?.label.toLowerCase() + ' '}transactions found.
           </div>
         )}
@@ -1335,9 +1335,9 @@ function TransactionRow({ txn, teamByRoster, playerName, playerPos, formatDate, 
   const rosterIds = txn.roster_ids || [];
 
   return (
-    <div className="bg-white rounded-xl border border-gray-200 p-5 hover:shadow-md transition-all">
+    <div className="bg-white rounded-none border-2 border-gray-200 p-5 hover:shadow-md transition-all">
       <div className="flex items-center justify-between mb-3">
-        <span className="inline-block px-2.5 py-1 text-xs font-black text-white rounded" style={{ backgroundColor: style.color }}>
+        <span className="inline-block px-2.5 py-1 text-xs font-black text-white rounded-none" style={{ backgroundColor: style.color }}>
           {style.label}
         </span>
         <span className="text-xs text-gray-400 font-semibold">{formatDate(txn.status_updated)}</span>
@@ -1352,9 +1352,9 @@ function TransactionRow({ txn, teamByRoster, playerName, playerPos, formatDate, 
             <button
               key={rid}
               onClick={() => goToTeam(team)}
-              className="flex items-center gap-2 rounded-lg px-1.5 py-1 -mx-1.5 hover:bg-gray-100 transition-colors"
+              className="flex items-center gap-2 rounded-none px-1.5 py-1 -mx-1.5 hover:bg-gray-100 transition-colors"
             >
-              <span className="w-6 h-6 flex items-center justify-center font-black text-white text-[10px] rounded" style={{ backgroundColor: team.primary }}>
+              <span className="w-6 h-6 flex items-center justify-center font-black text-white text-[10px] rounded-sm" style={{ backgroundColor: team.primary }}>
                 {team.abbrev}
               </span>
               <span className="text-sm font-bold text-gray-900 hover:text-blue-700">{team.name}</span>
@@ -1442,7 +1442,7 @@ function NewsPage({ openArticle }) {
         <p className="text-gray-600 mb-8">League news and analysis.</p>
         <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
           {articlesByDate.map(story => (
-            <button key={story.id} onClick={() => openArticle(story.id)} className="bg-white rounded-xl border border-gray-200 overflow-hidden hover:shadow-md hover:border-blue-700 transition-all cursor-pointer text-left">
+            <button key={story.id} onClick={() => openArticle(story.id)} className="bg-white rounded-none border-2 border-gray-200 overflow-hidden hover:shadow-md hover:border-blue-700 transition-all cursor-pointer text-left">
               <div className="h-40 bg-gray-100 overflow-hidden">
                 {story.image ? (
                   <img src={story.image} alt={story.title} className="w-full h-full object-cover" />
@@ -1484,7 +1484,7 @@ function ArticlePage({ articleId, data, setPage, setActiveTeam, goBack, canGoBac
           ← {canGoBack ? 'Back' : 'Back to News'}
         </button>
 
-        <span className="inline-block px-2 py-0.5 bg-blue-700 text-white text-xs font-black tracking-widest rounded">
+        <span className="inline-block px-2 py-0.5 bg-blue-700 text-white text-xs font-black tracking-widest rounded-none">
           {article.category}
         </span>
         <h1 className="text-3xl sm:text-5xl font-display font-black text-gray-900 tracking-tight leading-tight mt-4 mb-4">
@@ -1493,7 +1493,7 @@ function ArticlePage({ articleId, data, setPage, setActiveTeam, goBack, canGoBac
         <p className="text-xl text-gray-600 font-body leading-relaxed mb-6">{article.excerpt}</p>
 
         {article.image && (
-          <img src={article.image} alt={article.title} className="w-full rounded-xl mb-8 object-cover" />
+          <img src={article.image} alt={article.title} className="w-full rounded-none mb-8 object-cover" />
         )}
 
         <div className="space-y-5 mb-10">
@@ -1511,10 +1511,10 @@ function ArticlePage({ articleId, data, setPage, setActiveTeam, goBack, canGoBac
                 <button
                   key={team.id}
                   onClick={() => goToTeamHub(team.id)}
-                  className="flex items-center gap-3 pl-2 pr-4 py-2 rounded-lg text-white font-bold hover:opacity-90 transition-opacity"
+                  className="flex items-center gap-3 pl-2 pr-4 py-2 rounded-none text-white font-bold hover:opacity-90 transition-opacity"
                   style={{ backgroundColor: team.primary }}
                 >
-                  <span className="w-8 h-8 flex items-center justify-center bg-white/15 rounded font-black text-sm">
+                  <span className="w-8 h-8 flex items-center justify-center bg-white/15 rounded-none font-black text-sm">
                     {team.abbrev}
                   </span>
                   <span>{team.name}</span>
@@ -1665,7 +1665,7 @@ function RecordsPage({ data, setPage, setActiveTeam, openMatchup, goToTeamHub })
       <div className="bg-gray-50 min-h-screen">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 py-10">
           <h1 className="text-4xl sm:text-5xl font-display font-black text-gray-900 tracking-tight mb-2">RECORDS</h1>
-          <div className="bg-white rounded-xl border border-gray-200 p-12 text-center text-gray-500 mt-6">
+          <div className="bg-white rounded-none border-2 border-gray-200 p-12 text-center text-gray-500 mt-6">
             No games played yet. League records will appear here as the season unfolds.
           </div>
         </div>
@@ -1681,7 +1681,7 @@ function RecordsPage({ data, setPage, setActiveTeam, openMatchup, goToTeamHub })
 
         {/* Hall of Fame */}
         {champions.length > 0 && (
-          <div className="bg-gradient-to-br from-amber-50 to-amber-100 border border-amber-200 rounded-xl p-6 mb-6">
+          <div className="bg-gradient-to-br from-amber-50 to-amber-100 border border-amber-200 rounded-none p-6 mb-6">
             <h2 className="text-xl font-display font-black text-amber-900 mb-4 uppercase tracking-tight flex items-center gap-2">
               🏆 Hall of Fame
             </h2>
@@ -1690,11 +1690,11 @@ function RecordsPage({ data, setPage, setActiveTeam, openMatchup, goToTeamHub })
                 <button
                   key={c.season}
                   onClick={() => goToTeam(c.champion.owner)}
-                  className="flex items-center gap-4 bg-white rounded-lg p-4 border border-amber-200 hover:border-amber-400 transition-colors text-left"
+                  className="flex items-center gap-4 bg-white rounded-none p-4 border border-amber-200 hover:border-amber-400 transition-colors text-left"
                 >
                   <div className="text-3xl font-display font-black text-amber-700 shrink-0">{c.season}</div>
                   <div className="flex items-center gap-3 min-w-0 flex-1">
-                    <span className="w-9 h-9 flex items-center justify-center font-black text-white text-xs rounded shrink-0" style={{ backgroundColor: c.champion.primary }}>
+                    <span className="w-9 h-9 flex items-center justify-center font-black text-white text-xs rounded-sm shrink-0" style={{ backgroundColor: c.champion.primary }}>
                       {c.champion.abbrev}
                     </span>
                     <div className="min-w-0">
@@ -1710,7 +1710,7 @@ function RecordsPage({ data, setPage, setActiveTeam, openMatchup, goToTeamHub })
         )}
 
         {/* Single-week records */}
-        <div className="bg-white rounded-xl border border-gray-200 p-6 mb-6">
+        <div className="bg-white rounded-none border-2 border-gray-200 p-6 mb-6">
           <h2 className="text-xl font-display font-black text-gray-900 mb-4 uppercase tracking-tight">Single-Week Records</h2>
           <div className="grid sm:grid-cols-2 gap-3">
             {highestWeek && (
@@ -1762,7 +1762,7 @@ function RecordsPage({ data, setPage, setActiveTeam, openMatchup, goToTeamHub })
         </div>
 
         {/* Season records */}
-        <div className="bg-white rounded-xl border border-gray-200 p-6">
+        <div className="bg-white rounded-none border-2 border-gray-200 p-6">
           <h2 className="text-xl font-display font-black text-gray-900 mb-4 uppercase tracking-tight">Season Records</h2>
           <div className="grid sm:grid-cols-2 gap-3">
             {mostPointsSeason && (
@@ -1804,7 +1804,7 @@ function RecordRow({ label, value, detail, accent, onClick }) {
   return (
     <Wrapper
       onClick={onClick}
-      className={`w-full text-left ${a.bg} ${a.border} border rounded-lg p-4 ${onClick ? 'hover:shadow-sm transition-shadow cursor-pointer' : ''}`}
+      className={`w-full text-left ${a.bg} ${a.border} border rounded-none p-4 ${onClick ? 'hover:shadow-sm transition-shadow cursor-pointer' : ''}`}
     >
       <div className="text-xs font-black text-gray-600 uppercase tracking-widest mb-1">{label}</div>
       <div className={`text-3xl font-display font-black ${a.val} mb-1`}>{value}</div>
@@ -1828,7 +1828,7 @@ function HistoryPage({ data, setPage, setActiveTeam, openMatchup, goToTeamHub })
       <div className="bg-gray-50 min-h-screen">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 py-10">
           <h1 className="text-4xl sm:text-5xl font-display font-black text-gray-900 tracking-tight mb-2">HISTORY</h1>
-          <div className="bg-white rounded-xl border border-gray-200 p-12 text-center text-gray-500 mt-6">
+          <div className="bg-white rounded-none border-2 border-gray-200 p-12 text-center text-gray-500 mt-6">
             No previous seasons found — this is the league's first season. Check back next year!
           </div>
         </div>
@@ -1906,7 +1906,7 @@ function PlayoffBracket({ bracket, standings }) {
               const t1 = resolveSlot(m.t1);
               const t2 = resolveSlot(m.t2);
               return (
-                <div key={i} className="bg-white rounded-lg border border-gray-200 overflow-hidden">
+                <div key={i} className="bg-white rounded-none border-2 border-gray-200 overflow-hidden">
                   <BracketSlot team={t1} isWinner={m.w != null && m.w === t1?.rosterId} />
                   <div className="border-t border-gray-100" />
                   <BracketSlot team={t2} isWinner={m.w != null && m.w === t2?.rosterId} />
@@ -1930,7 +1930,7 @@ function BracketSlot({ team, isWinner }) {
   return (
     <div className={`flex items-center gap-2 px-3 py-2.5 ${isWinner ? 'bg-blue-50' : ''}`}>
       <span
-        className="w-6 h-6 flex items-center justify-center font-black text-white text-[10px] rounded shrink-0"
+        className="w-6 h-6 flex items-center justify-center font-black text-white text-[10px] rounded-sm shrink-0"
         style={{ backgroundColor: team.primary }}
       >
         {team.abbrev}
@@ -1948,14 +1948,14 @@ function MatchupBreakdown({ matchup, players, openPlayer }) {
   const { teamA, teamB, scoreA, scoreB, rawA, rawB } = matchup;
   if (!rawA || !rawB) {
     return (
-      <div className="bg-white rounded-lg border border-gray-200 p-4 text-sm text-gray-500">
+      <div className="bg-white rounded-none border-2 border-gray-200 p-4 text-sm text-gray-500">
         Lineup data not available for this matchup.
       </div>
     );
   }
 
   return (
-    <div className="bg-white rounded-xl border border-blue-200 overflow-hidden">
+    <div className="bg-white rounded-none border-2 border-blue-200 overflow-hidden">
       <div className="grid grid-cols-1 md:grid-cols-2 divide-y md:divide-y-0 md:divide-x divide-gray-100">
         <TeamLineup team={teamA} raw={rawA} score={scoreA} players={players} won={scoreA > scoreB} openPlayer={openPlayer} />
         <TeamLineup team={teamB} raw={rawB} score={scoreB} players={players} won={scoreB > scoreA} openPlayer={openPlayer} />
@@ -1995,13 +1995,13 @@ function TeamLineup({ team, raw, score, players, won, openPlayer }) {
       <Wrapper
         key={pid}
         onClick={handleClick}
-        className={`w-full flex items-center justify-between py-1.5 px-1.5 -mx-1.5 text-sm rounded ${
+        className={`w-full flex items-center justify-between py-1.5 px-1.5 -mx-1.5 text-sm rounded-none ${
           handleClick ? 'hover:bg-blue-50 cursor-pointer transition-colors text-left' : ''
         }`}
       >
         <div className="flex items-center gap-2 min-w-0">
           {playerPos(pid) && (
-            <span className="text-[10px] font-black text-gray-500 bg-gray-100 px-1.5 py-0.5 rounded shrink-0 w-9 text-center">
+            <span className="text-[10px] font-black text-gray-500 bg-gray-100 px-1.5 py-0.5 rounded-none shrink-0 w-9 text-center">
               {playerPos(pid)}
             </span>
           )}
@@ -2021,7 +2021,7 @@ function TeamLineup({ team, raw, score, players, won, openPlayer }) {
       {/* Header */}
       <div className="flex items-center justify-between pb-3 mb-3 border-b border-gray-200">
         <div className="flex items-center gap-2 min-w-0">
-          <span className="w-7 h-7 flex items-center justify-center font-black text-white text-[10px] rounded shrink-0" style={{ backgroundColor: team.primary }}>
+          <span className="w-7 h-7 flex items-center justify-center font-black text-white text-[10px] rounded-sm shrink-0" style={{ backgroundColor: team.primary }}>
             {team.abbrev}
           </span>
           <span className={`font-bold truncate ${won ? 'text-gray-900' : 'text-gray-600'}`}>{team.name}</span>
@@ -2068,7 +2068,7 @@ function SeasonHistoryCard({ season, players, openMatchup, goToTeam }) {
     : [];
 
   return (
-    <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+    <div className="bg-white rounded-none border-2 border-gray-200 overflow-hidden">
       {/* Season header */}
       <div className="px-6 py-5 border-b border-gray-200 flex items-center justify-between flex-wrap gap-3">
         <div className="flex items-center gap-4">
@@ -2077,7 +2077,7 @@ function SeasonHistoryCard({ season, players, openMatchup, goToTeam }) {
             <div className="flex items-center gap-2">
               <span className="text-xs font-black text-amber-600 uppercase tracking-widest">🏆 Champion</span>
               <div className="flex items-center gap-2">
-                <span className="w-6 h-6 flex items-center justify-center font-black text-white text-[10px] rounded" style={{ backgroundColor: season.champion.primary }}>
+                <span className="w-6 h-6 flex items-center justify-center font-black text-white text-[10px] rounded-sm" style={{ backgroundColor: season.champion.primary }}>
                   {season.champion.abbrev}
                 </span>
                 <span className="font-bold text-gray-900">{season.champion.name}</span>
@@ -2110,7 +2110,7 @@ function SeasonHistoryCard({ season, players, openMatchup, goToTeam }) {
           >
             <span className="col-span-1 text-gray-400 font-bold text-sm">{i + 1}</span>
             <div className="col-span-6 flex items-center gap-3 min-w-0">
-              <span className="w-6 h-6 flex items-center justify-center font-black text-white text-[10px] rounded shrink-0" style={{ backgroundColor: t.primary }}>
+              <span className="w-6 h-6 flex items-center justify-center font-black text-white text-[10px] rounded-sm shrink-0" style={{ backgroundColor: t.primary }}>
                 {t.abbrev}
               </span>
               <div className="min-w-0">
@@ -2140,8 +2140,8 @@ function SeasonHistoryCard({ season, players, openMatchup, goToTeam }) {
               <div className="flex gap-2 mb-4 overflow-x-auto pb-2">
                 {weekNumbers.map(w => (
                   <button key={w} onClick={() => setWeek(w)}
-                    className={`px-3 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap transition-colors ${
-                      w === activeWeek ? 'bg-blue-700 text-white' : 'bg-white text-gray-700 hover:bg-gray-100 border border-gray-200'
+                    className={`px-3 py-1.5 rounded-none text-xs font-bold whitespace-nowrap transition-colors ${
+                      w === activeWeek ? 'bg-blue-700 text-white' : 'bg-white text-gray-700 hover:bg-gray-100 border-2 border-gray-200'
                     }`}>
                     Week {w}
                   </button>
@@ -2156,7 +2156,7 @@ function SeasonHistoryCard({ season, players, openMatchup, goToTeam }) {
                     <button
                       key={i}
                       onClick={() => openMatchup && openMatchup({ season: season.season, week: activeWeek, ownerA: m.teamA.owner, ownerB: m.teamB.owner })}
-                      className="text-left bg-white rounded-lg border border-gray-200 hover:border-blue-300 hover:shadow-sm p-3 transition-all"
+                      className="text-left bg-white rounded-none border-2 border-gray-200 hover:border-blue-300 hover:shadow-sm p-3 transition-all"
                     >
                       <MatchupColumnRow team={m.teamA} score={m.scoreA} won={aWon} />
                       <MatchupColumnRow team={m.teamB} score={m.scoreB} won={bWon} />
@@ -2386,14 +2386,14 @@ function PlayersPage({ data, openPlayer }) {
         {/* Mode toggle */}
         <div className="flex gap-2 mb-4">
           <button onClick={() => setMode('rostered')}
-            className={`px-4 py-2 rounded-lg text-sm font-bold transition-colors ${
-              mode === 'rostered' ? 'bg-blue-700 text-white' : 'bg-white text-gray-700 hover:bg-gray-100 border border-gray-200'
+            className={`px-4 py-2 rounded-none text-sm font-bold transition-colors ${
+              mode === 'rostered' ? 'bg-blue-700 text-white' : 'bg-white text-gray-700 hover:bg-gray-100 border-2 border-gray-200'
             }`}>
             Rostered Players
           </button>
           <button onClick={() => setMode('all')}
-            className={`px-4 py-2 rounded-lg text-sm font-bold transition-colors ${
-              mode === 'all' ? 'bg-blue-700 text-white' : 'bg-white text-gray-700 hover:bg-gray-100 border border-gray-200'
+            className={`px-4 py-2 rounded-none text-sm font-bold transition-colors ${
+              mode === 'all' ? 'bg-blue-700 text-white' : 'bg-white text-gray-700 hover:bg-gray-100 border-2 border-gray-200'
             }`}>
             All NFL Players
           </button>
@@ -2405,7 +2405,7 @@ function PlayersPage({ data, openPlayer }) {
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           placeholder={mode === 'rostered' ? 'Filter by name (optional)…' : 'Search players by name…'}
-          className="w-full px-4 py-3 rounded-xl border border-gray-300 text-gray-900 mb-4 focus:outline-none focus:border-blue-700 focus:ring-1 focus:ring-blue-700"
+          className="w-full px-4 py-3 rounded-none border border-gray-300 text-gray-900 mb-4 focus:outline-none focus:border-blue-700 focus:ring-1 focus:ring-blue-700"
         />
 
         {/* Position filter */}
@@ -2413,8 +2413,8 @@ function PlayersPage({ data, openPlayer }) {
           <span className="text-xs font-black text-gray-500 uppercase tracking-widest mr-1 w-28 shrink-0">Filter by Position:</span>
           {positions.map(pos => (
             <button key={pos} onClick={() => setPosFilter(pos)}
-              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-colors ${
-                posFilter === pos ? 'bg-blue-700 text-white' : 'bg-white text-gray-700 hover:bg-gray-100 border border-gray-200'
+              className={`px-3 py-1.5 rounded-none text-xs font-bold transition-colors ${
+                posFilter === pos ? 'bg-blue-700 text-white' : 'bg-white text-gray-700 hover:bg-gray-100 border-2 border-gray-200'
               }`}>
               {pos}
             </button>
@@ -2428,7 +2428,7 @@ function PlayersPage({ data, openPlayer }) {
             <div className="relative" ref={teamDropdownRef}>
               <button
                 onClick={() => setTeamDropdownOpen(o => !o)}
-                className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-bold border transition-colors ${
+                className={`flex items-center gap-2 px-3 py-1.5 rounded-none text-xs font-bold border transition-colors ${
                   teamFilterSet.size > 0 ? 'bg-gray-900 text-white border-gray-900' : 'bg-white text-gray-700 hover:bg-gray-100 border-gray-200'
                 }`}
               >
@@ -2442,7 +2442,7 @@ function PlayersPage({ data, openPlayer }) {
                 <span className="text-[10px]">{teamDropdownOpen ? '▲' : '▼'}</span>
               </button>
               {teamDropdownOpen && (
-                <div className="absolute left-0 top-full mt-1 z-50 bg-white border border-gray-200 rounded-xl shadow-xl w-72 overflow-hidden">
+                <div className="absolute left-0 top-full mt-1 z-50 bg-white border-2 border-gray-200 rounded-none shadow-xl w-72 overflow-hidden">
                   <div className="flex items-center justify-between px-3 py-2 border-b border-gray-100 bg-gray-50">
                     <button onClick={() => setTeamFilterSet(new Set(teams.map(t => t.id)))}
                       className="text-xs font-bold text-blue-700 hover:text-blue-900">
@@ -2462,12 +2462,12 @@ function PlayersPage({ data, openPlayer }) {
                           onClick={() => toggleTeamFilter(t.id)}
                           className="w-full text-left flex items-center gap-3 px-3 py-2 hover:bg-blue-50 transition-colors"
                         >
-                          <span className={`w-4 h-4 flex items-center justify-center rounded border-2 shrink-0 ${
+                          <span className={`w-4 h-4 flex items-center justify-center rounded-none border-2 shrink-0 ${
                             checked ? 'bg-blue-700 border-blue-700' : 'border-gray-300 bg-white'
                           }`}>
                             {checked && <span className="text-white text-[10px] font-black leading-none">✓</span>}
                           </span>
-                          <span className="w-6 h-6 flex items-center justify-center font-black text-white text-[10px] rounded shrink-0" style={{ backgroundColor: t.primary }}>
+                          <span className="w-6 h-6 flex items-center justify-center font-black text-white text-[10px] rounded-sm shrink-0" style={{ backgroundColor: t.primary }}>
                             {t.abbrev}
                           </span>
                           <span className="text-sm font-bold text-gray-900 truncate flex-1">{t.name}</span>
@@ -2484,8 +2484,8 @@ function PlayersPage({ data, openPlayer }) {
                 {teams.filter(t => teamFilterSet.has(t.id)).map(t => (
                   <button key={t.id} onClick={() => toggleTeamFilter(t.id)}
                     title="Remove from filter"
-                    className="flex items-center gap-1.5 px-2 py-1 rounded-lg text-xs font-bold bg-gray-100 hover:bg-gray-200 transition-colors">
-                    <span className="w-4 h-4 flex items-center justify-center font-black text-white text-[8px] rounded shrink-0" style={{ backgroundColor: t.primary }}>
+                    className="flex items-center gap-1.5 px-2 py-1 rounded-none text-xs font-bold bg-gray-100 hover:bg-gray-200 transition-colors">
+                    <span className="w-4 h-4 flex items-center justify-center font-black text-white text-[8px] rounded-sm shrink-0" style={{ backgroundColor: t.primary }}>
                       {t.abbrev}
                     </span>
                     <span className="text-gray-700">{t.name}</span>
@@ -2500,22 +2500,22 @@ function PlayersPage({ data, openPlayer }) {
 
         {/* Results */}
         {mode === 'all' && q.length < 2 ? (
-          <div className="bg-white rounded-xl border border-gray-200 p-12 text-center text-gray-500">
+          <div className="bg-white rounded-none border-2 border-gray-200 p-12 text-center text-gray-500">
             Start typing a player's name to search.
           </div>
         ) : rosteredStats.loading && mode === 'rostered' ? (
-          <div className="bg-white rounded-xl border border-gray-200 p-12 text-center text-gray-500">
+          <div className="bg-white rounded-none border-2 border-gray-200 p-12 text-center text-gray-500">
             <div className="flex items-center justify-center gap-3">
               <div className="w-4 h-4 border-2 border-blue-700 border-t-transparent rounded-full animate-spin" />
               Loading stats for {rosteredIds.size} players…
             </div>
           </div>
         ) : results.length === 0 ? (
-          <div className="bg-white rounded-xl border border-gray-200 p-12 text-center text-gray-500">
+          <div className="bg-white rounded-none border-2 border-gray-200 p-12 text-center text-gray-500">
             No players found{q ? ` for "${query}"` : ''}.
           </div>
         ) : (
-          <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+          <div className="bg-white rounded-none border-2 border-gray-200 overflow-hidden">
             {/* Column headers (rostered mode) — click to sort */}
             {mode === 'rostered' && (
               <div className="hidden sm:grid grid-cols-12 text-xs font-bold text-gray-500 uppercase tracking-wider border-b border-gray-200 bg-gray-50">
@@ -2536,14 +2536,14 @@ function PlayersPage({ data, openPlayer }) {
                     onClick={() => openPlayer(p.id)}
                     className="w-full text-left flex items-center gap-4 px-5 py-3 border-b border-gray-100 last:border-0 hover:bg-blue-50/50 transition-colors"
                   >
-                    <span className="inline-block px-2 py-0.5 bg-gray-100 text-gray-700 text-xs font-bold rounded w-12 text-center shrink-0">
+                    <span className="inline-block px-2 py-0.5 bg-gray-100 text-gray-700 text-xs font-bold rounded-none w-12 text-center shrink-0">
                       {p.pos}
                     </span>
                     <span className="font-bold text-gray-900 flex-1 hover:text-blue-700">{p.name}</span>
                     <span className="text-sm text-gray-500">{p.team}</span>
                     {owner && (
                       <span
-                        className="text-[10px] font-black text-white px-2 py-0.5 rounded shrink-0"
+                        className="text-[10px] font-black text-white px-2 py-0.5 rounded-none shrink-0"
                         style={{ backgroundColor: owner.primary }}
                         title={`Rostered by ${owner.name}`}
                       >
@@ -2561,7 +2561,7 @@ function PlayersPage({ data, openPlayer }) {
                   className="w-full text-left grid grid-cols-12 items-center gap-2 px-5 py-3 border-b border-gray-100 last:border-0 hover:bg-blue-50/50 transition-colors"
                 >
                   <div className="col-span-5 flex items-center gap-3 min-w-0">
-                    <span className="inline-block px-2 py-0.5 bg-gray-100 text-gray-700 text-[10px] font-bold rounded w-10 text-center shrink-0">
+                    <span className="inline-block px-2 py-0.5 bg-gray-100 text-gray-700 text-[10px] font-bold rounded-none w-10 text-center shrink-0">
                       {p.pos}
                     </span>
                     <span className="font-bold text-gray-900 truncate hover:text-blue-700">{p.name}</span>
@@ -2569,7 +2569,7 @@ function PlayersPage({ data, openPlayer }) {
                   <div className="col-span-2 flex items-center justify-center gap-2 text-sm">
                     {owner && (
                       <span
-                        className="text-[10px] font-black text-white px-2 py-0.5 rounded shrink-0"
+                        className="text-[10px] font-black text-white px-2 py-0.5 rounded-none shrink-0"
                         style={{ backgroundColor: owner.primary }}
                         title={`Rostered by ${owner.name}`}
                       >
@@ -2859,7 +2859,7 @@ function MatchupDetailPage({ matchupKey, data, setPage, setActiveTeam, openPlaye
               onClick={() => goToTeamHub(teamA.id)}
               className="text-left flex items-center gap-3 min-w-0 hover:opacity-80 transition-opacity"
             >
-              <span className="w-12 h-12 flex items-center justify-center font-black text-white rounded shrink-0" style={{ backgroundColor: teamA.primary }}>
+              <span className="w-12 h-12 flex items-center justify-center font-black text-white rounded-sm shrink-0" style={{ backgroundColor: teamA.primary }}>
                 {teamA.abbrev}
               </span>
               <div className="min-w-0">
@@ -2886,7 +2886,7 @@ function MatchupDetailPage({ matchupKey, data, setPage, setActiveTeam, openPlaye
                 <div className={`text-xl font-display font-black truncate ${bWon || !played ? 'text-white' : 'text-blue-300'}`}>{teamB.name}</div>
                 <div className="text-xs text-blue-200 truncate">{teamB.owner}</div>
               </div>
-              <span className="w-12 h-12 flex items-center justify-center font-black text-white rounded shrink-0" style={{ backgroundColor: teamB.primary }}>
+              <span className="w-12 h-12 flex items-center justify-center font-black text-white rounded-sm shrink-0" style={{ backgroundColor: teamB.primary }}>
                 {teamB.abbrev}
               </span>
             </button>
@@ -2896,7 +2896,7 @@ function MatchupDetailPage({ matchupKey, data, setPage, setActiveTeam, openPlaye
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 py-8 space-y-6">
         {/* Comparison strip */}
-        <div className="bg-white rounded-xl border border-gray-200 p-6">
+        <div className="bg-white rounded-none border-2 border-gray-200 p-6">
           <h2 className="text-sm font-black text-gray-500 uppercase tracking-widest mb-4">Season Comparison</h2>
           <div className="grid grid-cols-[1fr_auto_1fr] gap-4 text-sm">
             <ComparisonRow
@@ -2919,7 +2919,7 @@ function MatchupDetailPage({ matchupKey, data, setPage, setActiveTeam, openPlaye
 
         {/* Head-to-head + Rivalry insights */}
         {(h2h.length > 0 || insights.length > 0) && (
-          <div className="bg-white rounded-xl border border-gray-200 p-6">
+          <div className="bg-white rounded-none border-2 border-gray-200 p-6">
             <h2 className="text-sm font-black text-gray-500 uppercase tracking-widest mb-4">
               Head-to-Head{h2h.length > 0 && ` (${h2h.length} ${h2h.length === 1 ? 'meeting' : 'meetings'})`}
             </h2>
@@ -2962,8 +2962,8 @@ function MatchupDetailPage({ matchupKey, data, setPage, setActiveTeam, openPlaye
                         key={i}
                         onClick={handleClick}
                         className={`w-full flex items-center gap-2 py-1.5 text-sm ${
-                          isThisOne ? 'bg-blue-50 rounded-lg px-2 -mx-2' : ''
-                        } ${handleClick ? 'hover:bg-gray-50 rounded-lg px-2 -mx-2 transition-colors cursor-pointer text-left' : ''}`}
+                          isThisOne ? 'bg-blue-50 rounded-none px-2 -mx-2' : ''
+                        } ${handleClick ? 'hover:bg-gray-50 rounded-none px-2 -mx-2 transition-colors cursor-pointer text-left' : ''}`}
                       >
                         <span className="text-xs text-gray-400 font-bold w-20 shrink-0">{m.season} · Wk {m.week}</span>
                         <span className={`font-bold text-right flex-1 truncate ${aMore ? 'text-gray-900' : 'text-gray-500'}`}>{teamA.name}</span>
@@ -3031,9 +3031,9 @@ function RivalryPill({ insight }) {
 
 function FormCard({ team, games, openMatchup }) {
   return (
-    <div className="bg-white rounded-xl border border-gray-200 p-5">
+    <div className="bg-white rounded-none border-2 border-gray-200 p-5">
       <div className="flex items-center gap-2 mb-4">
-        <span className="w-7 h-7 flex items-center justify-center font-black text-white text-[10px] rounded" style={{ backgroundColor: team.primary }}>
+        <span className="w-7 h-7 flex items-center justify-center font-black text-white text-[10px] rounded-sm" style={{ backgroundColor: team.primary }}>
           {team.abbrev}
         </span>
         <span className="font-bold text-gray-900 truncate">{team.name}</span>
@@ -3050,9 +3050,9 @@ function FormCard({ team, games, openMatchup }) {
               <button
                 key={i}
                 onClick={() => openMatchup && openMatchup({ season: g.season, week: g.week, ownerA: team.owner, ownerB: g.oppTeam.owner })}
-                className="w-full text-left flex items-center gap-2 text-sm py-1 px-2 -mx-2 rounded hover:bg-gray-50 transition-colors"
+                className="w-full text-left flex items-center gap-2 text-sm py-1 px-2 -mx-2 rounded-none hover:bg-gray-50 transition-colors"
               >
-                <span className={`w-6 h-6 flex items-center justify-center text-[10px] font-black rounded shrink-0 ${
+                <span className={`w-6 h-6 flex items-center justify-center text-[10px] font-black rounded-none shrink-0 ${
                   won ? 'bg-green-100 text-green-700' : lost ? 'bg-red-100 text-red-700' : 'bg-gray-100 text-gray-500'
                 }`}>
                   {won ? 'W' : lost ? 'L' : 'T'}
@@ -3365,7 +3365,7 @@ function PlayerPage({ playerId, data, setPage, setActiveTeam, goBack, canGoBack,
                 {name}
               </h1>
               {player.injury_status && (
-                <span className="inline-block mt-3 px-2.5 py-1 bg-red-600 text-white text-xs font-black rounded uppercase tracking-wider">
+                <span className="inline-block mt-3 px-2.5 py-1 bg-red-600 text-white text-xs font-black rounded-none uppercase tracking-wider">
                   {player.injury_status}
                 </span>
               )}
@@ -3394,7 +3394,7 @@ function PlayerPage({ playerId, data, setPage, setActiveTeam, goBack, canGoBack,
         {/* ===== PROFILE TAB ===== */}
         {tab === 'Profile' && (
           <div className="grid lg:grid-cols-3 gap-6">
-            <div className="lg:col-span-2 bg-white rounded-xl border border-gray-200 p-6">
+            <div className="lg:col-span-2 bg-white rounded-none border-2 border-gray-200 p-6">
               <h2 className="text-xl font-display font-black text-gray-900 mb-4 uppercase tracking-tight">Profile</h2>
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
                 {profileFields.map(f => (
@@ -3416,15 +3416,15 @@ function PlayerPage({ playerId, data, setPage, setActiveTeam, goBack, canGoBack,
             </div>
 
             <div>
-              <div className="bg-white rounded-xl border border-gray-200 p-5">
+              <div className="bg-white rounded-none border-2 border-gray-200 p-5">
                 <div className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-3">Fantasy Status</div>
                 {rosteredBy ? (
                   <>
                     <button
                       onClick={() => goToTeamHub(rosteredBy.id)}
-                      className="flex items-center gap-3 w-full text-left rounded-lg p-2 -m-2 hover:bg-gray-50 transition-colors"
+                      className="flex items-center gap-3 w-full text-left rounded-none p-2 -m-2 hover:bg-gray-50 transition-colors"
                     >
-                      <span className="w-10 h-10 flex items-center justify-center font-black text-white text-sm rounded shrink-0" style={{ backgroundColor: rosteredBy.primary }}>
+                      <span className="w-10 h-10 flex items-center justify-center font-black text-white text-sm rounded-sm shrink-0" style={{ backgroundColor: rosteredBy.primary }}>
                         {rosteredBy.abbrev}
                       </span>
                       <div className="min-w-0">
@@ -3450,7 +3450,7 @@ function PlayerPage({ playerId, data, setPage, setActiveTeam, goBack, canGoBack,
         {tab === 'Stats' && (
           <div className="space-y-6">
             {/* NFL Season Stats */}
-            <div className="bg-white rounded-xl border border-gray-200 p-6">
+            <div className="bg-white rounded-none border-2 border-gray-200 p-6">
               <h2 className="text-xl font-display font-black text-gray-900 mb-4 uppercase tracking-tight">
                 {season} Season Stats
               </h2>
@@ -3466,15 +3466,15 @@ function PlayerPage({ playerId, data, setPage, setActiveTeam, goBack, canGoBack,
               ) : (
                 <>
                   <div className="flex flex-wrap gap-3 mb-5">
-                    <div className="bg-blue-700 text-white rounded-lg px-5 py-3">
+                    <div className="bg-blue-700 text-white rounded-none px-5 py-3">
                       <div className="text-3xl font-display font-black">{fmtNum(stats.data.pts_ppr)}</div>
                       <div className="text-xs font-bold uppercase tracking-widest text-blue-100">Fantasy Pts (PPR)</div>
                     </div>
-                    <div className="bg-gray-100 rounded-lg px-5 py-3">
+                    <div className="bg-gray-100 rounded-none px-5 py-3">
                       <div className="text-3xl font-display font-black text-gray-900">{fmtNum(stats.data.pts_half_ppr)}</div>
                       <div className="text-xs font-bold uppercase tracking-widest text-gray-500">Half-PPR</div>
                     </div>
-                    <div className="bg-gray-100 rounded-lg px-5 py-3">
+                    <div className="bg-gray-100 rounded-none px-5 py-3">
                       <div className="text-3xl font-display font-black text-gray-900">{fmtNum(stats.data.pts_std)}</div>
                       <div className="text-xs font-bold uppercase tracking-widest text-gray-500">Standard</div>
                     </div>
@@ -3493,7 +3493,7 @@ function PlayerPage({ playerId, data, setPage, setActiveTeam, goBack, canGoBack,
 
             {/* Fantasy Starter Stats — only if they've ever started */}
             {realGames.length > 0 && (
-              <div className="bg-white rounded-xl border border-gray-200 p-6">
+              <div className="bg-white rounded-none border-2 border-gray-200 p-6">
                 <h2 className="text-xl font-display font-black text-gray-900 mb-1 uppercase tracking-tight">
                   Fantasy Starter Stats
                 </h2>
@@ -3520,12 +3520,12 @@ function PlayerPage({ playerId, data, setPage, setActiveTeam, goBack, canGoBack,
                 </div>
                 {bestGame && worstGame && (
                   <div className="grid sm:grid-cols-2 gap-3 mt-2 pt-4 border-t border-gray-100">
-                    <div className="flex items-center justify-between text-sm bg-green-50 rounded-lg px-3 py-2">
+                    <div className="flex items-center justify-between text-sm bg-green-50 rounded-none px-3 py-2">
                       <span className="text-xs font-black text-green-700 uppercase tracking-widest">Best</span>
                       <span className="text-gray-700 truncate mx-2">{bestGame.season} Wk {bestGame.week} · {bestGame.teamName}</span>
                       <span className="font-display font-black text-green-700">{bestGame.points.toFixed(1)}</span>
                     </div>
-                    <div className="flex items-center justify-between text-sm bg-red-50 rounded-lg px-3 py-2">
+                    <div className="flex items-center justify-between text-sm bg-red-50 rounded-none px-3 py-2">
                       <span className="text-xs font-black text-red-700 uppercase tracking-widest">Worst</span>
                       <span className="text-gray-700 truncate mx-2">{worstGame.season} Wk {worstGame.week} · {worstGame.teamName}</span>
                       <span className="font-display font-black text-red-700">{worstGame.points.toFixed(1)}</span>
@@ -3547,8 +3547,8 @@ function PlayerPage({ playerId, data, setPage, setActiveTeam, goBack, canGoBack,
                         >
                           <span className="text-xs text-gray-400 font-bold w-20 shrink-0">{g.season} · Wk {g.week}</span>
                           <span className="text-gray-700 truncate flex-1">{g.teamName}</span>
-                          {isBest && <span className="text-[10px] font-black text-green-700 bg-green-50 px-1.5 py-0.5 rounded">BEST</span>}
-                          {isWorst && <span className="text-[10px] font-black text-red-700 bg-red-50 px-1.5 py-0.5 rounded">WORST</span>}
+                          {isBest && <span className="text-[10px] font-black text-green-700 bg-green-50 px-1.5 py-0.5 rounded-none">BEST</span>}
+                          {isWorst && <span className="text-[10px] font-black text-red-700 bg-red-50 px-1.5 py-0.5 rounded-none">WORST</span>}
                           <span className="font-display font-black text-gray-900 w-12 text-right shrink-0">{g.points.toFixed(1)}</span>
                         </div>
                       );
@@ -3568,7 +3568,7 @@ function PlayerPage({ playerId, data, setPage, setActiveTeam, goBack, canGoBack,
 
             {/* Weekly Scoring chart (current season) */}
             {chartData.length > 0 && (
-              <div className="bg-white rounded-xl border border-gray-200 p-6">
+              <div className="bg-white rounded-none border-2 border-gray-200 p-6">
                 <h2 className="text-xl font-display font-black text-gray-900 mb-4 uppercase tracking-tight">
                   Weekly Scoring — {season}
                 </h2>
@@ -3615,7 +3615,7 @@ function PlayerPage({ playerId, data, setPage, setActiveTeam, goBack, canGoBack,
 
         {/* ===== HISTORY TAB ===== */}
         {tab === 'History' && hasHistory && (
-          <div className="bg-white rounded-xl border border-gray-200 p-6">
+          <div className="bg-white rounded-none border-2 border-gray-200 p-6">
             <h2 className="text-xl font-display font-black text-gray-900 mb-4 uppercase tracking-tight">
               Past Seasons
             </h2>
@@ -3663,7 +3663,7 @@ function PlayerPage({ playerId, data, setPage, setActiveTeam, goBack, canGoBack,
 
         {/* ===== TRANSACTIONS TAB ===== */}
         {tab === 'Transactions' && (
-          <div className="bg-white rounded-xl border border-gray-200 p-6">
+          <div className="bg-white rounded-none border-2 border-gray-200 p-6">
             <h2 className="text-xl font-display font-black text-gray-900 mb-4 uppercase tracking-tight">
               League Transactions
             </h2>
@@ -3680,7 +3680,7 @@ function PlayerPage({ playerId, data, setPage, setActiveTeam, goBack, canGoBack,
                   return (
                     <div key={txn.transaction_id} className="flex items-center gap-3 flex-wrap py-2 border-b border-gray-100 last:border-0">
                       <span
-                        className="inline-block px-2 py-0.5 text-[10px] font-black text-white rounded shrink-0"
+                        className="inline-block px-2 py-0.5 text-[10px] font-black text-white rounded-none shrink-0"
                         style={{ backgroundColor: TYPE_COLOR[txn.type] || '#6B7280' }}
                       >
                         {TYPE_LABEL[txn.type] || (txn.type || 'MOVE').toUpperCase()}
@@ -3851,9 +3851,9 @@ export default function App() {
               <div className="lg:col-span-2">
                 <div className="flex items-center gap-3 mb-3">
                   {LOGO_URL ? (
-                    <img src={LOGO_URL} alt="CTESPN Dynasty League" className="w-10 h-10 object-contain rounded bg-white" />
+                    <img src={LOGO_URL} alt="CTESPN Dynasty League" className="w-10 h-10 object-contain rounded-none bg-white" />
                   ) : (
-                    <div className="w-10 h-10 bg-white flex items-center justify-center font-black text-blue-700 text-xl rounded">C</div>
+                    <div className="w-10 h-10 bg-white flex items-center justify-center font-black text-blue-700 text-xl rounded-none">C</div>
                   )}
                   <span className="font-display font-black text-xl tracking-tight">CTESPN Dynasty League</span>
                 </div>
