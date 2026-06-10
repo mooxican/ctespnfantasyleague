@@ -197,6 +197,8 @@ const articles = [
     body: "The Ta Keo Titans have released QB Tua Tagovailoa for a second time in two seasons, following roster cuts by General Manager Staten this Sunday.\n\n Tagovailoa did not record a single start for the Titans and was mainly a camp body for this offseason.",
     teamIds: [5],
     id: 2,
+    },
+  {
   date: '2026-06-09',
     category: 'TRADE',
     title: "Olympians trade for TE Dallas Goedert.",
