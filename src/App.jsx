@@ -189,10 +189,11 @@ const articles = [
     title: "Test Article",
     excerpt: 'This is a test of the article system of the CTESPN Dynasty Website.',
     image: 'https://media.discordapp.net/attachments/1346646791554338949/1504514190608699612/IMG_0912.jpg?ex=6a074387&is=6a05f207&hm=4da17256a1223191cc3f2a4666eac4799264a80b15cea2d05d19168a3df7e814&=&format=webp&width=1255&height=999',
-    body: "This is a test of the article system of the CTESPN Dynasty Website, May 14, 2026.\n\nThis text should appear as normal with all relevant teams and buttons to redirect them. \nHooray!!",
+    body: "This is a test of the article system of the CTESPN Dynasty Website, May 14, 2026.\n\nThis text should appear as normal with all relevant teams and buttons to redirect them. \nHooray!",
     teamIds: [3, 5, 6],
   },
 ];
+
 // Articles sorted newest-first by date. Used across the site.
 const articlesByDate = [...articles].sort((a, b) => new Date(b.date) - new Date(a.date));
 
@@ -712,7 +713,7 @@ function MatchupColumnRow({ team, score, won }) {
   return (
     <div className="flex items-center justify-between py-0.5">
       <div className="flex items-center gap-2 min-w-0">
-        <TeamBadge team={team} size="sm" />
+        <TeamBadge team={team} size="md" />
         <span className={`text-sm truncate ${won ? 'font-bold text-gray-900' : 'font-semibold text-gray-600'}`}>
           {team.name}
         </span>
@@ -967,7 +968,7 @@ function TeamsPage({ data, setPage, setActiveTeam, goToTeamHub }) {
             <button key={t.id} onClick={() => goToTeamHub(t.id)}
               className="relative overflow-hidden rounded-none shadow-sm hover:shadow-xl cursor-pointer transition-all group text-left"
               style={{ backgroundColor: t.primary }}>
-              <div className="p-6 h-40 flex flex-col justify-between">
+              <div className="p-6 h-40 flex flex-col justify-between relative z-10">
                 <div className="text-white/70 font-bold text-xs tracking-widest">FANTASY</div>
                 <div>
                   <div className="text-white/80 text-sm font-semibold truncate">{t.owner}</div>
@@ -975,9 +976,19 @@ function TeamsPage({ data, setPage, setActiveTeam, goToTeamHub }) {
                   <div className="text-white/80 text-sm font-bold mt-1">{t.wins}-{t.losses}{t.ties ? `-${t.ties}` : ''}</div>
                 </div>
               </div>
-              <div className="absolute -right-6 -bottom-6 text-white/10 text-9xl font-display font-black tracking-tighter group-hover:text-white/20 transition-colors">
-                {t.abbrev}
-              </div>
+              {/* Watermark: logo if available, otherwise the team's letter abbrev */}
+              {t.logo ? (
+                <img
+                  src={t.logo}
+                  alt=""
+                  aria-hidden="true"
+                  className="absolute -right-4 -bottom-4 w-36 h-36 object-contain opacity-25 group-hover:opacity-40 transition-opacity pointer-events-none"
+                />
+              ) : (
+                <div className="absolute -right-6 -bottom-6 text-white/10 text-9xl font-display font-black tracking-tighter group-hover:text-white/20 transition-colors">
+                  {t.abbrev}
+                </div>
+              )}
             </button>
           ))}
         </div>
@@ -1002,9 +1013,19 @@ function TeamHubPage({ teamId, data, setPage, openPlayer, goBack, canGoBack }) {
   return (
     <div className="bg-gray-50 min-h-screen">
       <div className="relative overflow-hidden" style={{ backgroundColor: team.primary }}>
-        <div className="absolute -right-12 -bottom-20 text-white/10 text-[20rem] font-display font-black tracking-tighter leading-none select-none">
-          {team.abbrev}
-        </div>
+        {/* Watermark: logo if available, otherwise the team's letter abbrev */}
+        {team.logo ? (
+          <img
+            src={team.logo}
+            alt=""
+            aria-hidden="true"
+            className="absolute -right-8 -bottom-12 w-80 h-80 sm:w-96 sm:h-96 object-contain opacity-20 pointer-events-none select-none"
+          />
+        ) : (
+          <div className="absolute -right-12 -bottom-20 text-white/10 text-[20rem] font-display font-black tracking-tighter leading-none select-none">
+            {team.abbrev}
+          </div>
+        )}
         <div className="relative max-w-7xl mx-auto px-4 sm:px-6 py-10">
           <button onClick={() => canGoBack ? goBack() : setPage('Teams')} className="text-white/80 hover:text-white text-sm font-bold mb-4">
             ← {canGoBack ? 'Back' : 'All Teams'}
@@ -2086,7 +2107,7 @@ function BracketSlot({ team, isWinner }) {
   }
   return (
     <div className={`flex items-center gap-2 px-3 py-2.5 ${isWinner ? 'bg-blue-50' : ''}`}>
-      <TeamBadge team={team} size="sm" />
+      <TeamBadge team={team} size="md" />
       <span className={`text-sm truncate flex-1 ${isWinner ? 'font-black text-gray-900' : 'font-semibold text-gray-600'}`}>
         {team.name}
       </span>
@@ -2227,7 +2248,7 @@ function SeasonHistoryCard({ season, players, openMatchup, goToTeam }) {
             <div className="flex items-center gap-2">
               <span className="text-xs font-black text-amber-600 uppercase tracking-widest">🏆 Champion</span>
               <div className="flex items-center gap-2">
-                <TeamBadge team={season.champion} size="sm" />
+                <TeamBadge team={season.champion} size="md" />
                 <span className="font-bold text-gray-900">{season.champion.name}</span>
               </div>
             </div>
@@ -2258,7 +2279,7 @@ function SeasonHistoryCard({ season, players, openMatchup, goToTeam }) {
           >
             <span className="col-span-1 text-gray-400 font-bold text-sm">{i + 1}</span>
             <div className="col-span-6 flex items-center gap-3 min-w-0">
-              <TeamBadge team={t} size="sm" />
+              <TeamBadge team={t} size="md" />
               <div className="min-w-0">
                 <div className={`font-bold text-gray-900 truncate ${handleClick ? 'hover:text-blue-700' : ''}`}>{t.name}</div>
                 <div className="text-xs text-gray-500 truncate">{t.owner}</div>
