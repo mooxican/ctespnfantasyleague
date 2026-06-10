@@ -52,12 +52,104 @@ function getOverrideScore(season, week, ownerName) {
 // the `public` folder, and change LOGO_URL to '/logo.png'.
 const LOGO_URL = 'https://media.discordapp.net/attachments/1346646791554338949/1504523866171773018/CTESPN_DYNASTY.png?ex=6a074c8a&is=6a05fb0a&hm=466aeb0f8759902dd3f061246aa3365f123429fbea777b7aa5fae4509c2b21b4&=&format=webp&quality=lossless&width=1045&height=1045';
 
-// Distinct color per manager (cycles by roster_id)
+// =========================================================================
+//  TEAM COLORS — keyed by Sleeper owner display name
+// -------------------------------------------------------------------------
+//  Each entry has a `primary` (used for big surfaces: banners, charts,
+//  button tiles, hovers) and a `badge` (used for small abbreviation
+//  squares like KTG, GSA, etc.). For most teams these are identical;
+//  for very light colors where white text would be illegible on a small
+//  badge, `badge` is a darker variant of the same hue.
+//
+//  To add/edit colors: just edit the map below using the manager's
+//  Sleeper display name (case-sensitive).
+// =========================================================================
+const TEAM_COLOR_MAP = {
+  // Kasane Teto Goon Squad
+  Memeworks:        { primary: '#dd2886', badge: '#dd2886' },
+  // God, Syria, and Allar
+  DomIsBored:       { primary: '#ce1126', badge: '#ce1126' },
+  // Wagner Eagles
+  Rlcchamp:         { primary: '#1d9502', badge: '#1d9502' },
+  // The Scranton Silly Gals — primary stays light; badge darkened for legibility
+  ANormalPrussian:  { primary: '#d389f1', badge: '#9333ea' },
+  // Ta Keo Titans — primary stays mint-teal; badge darkened for legibility
+  Realsiib:         { primary: '#1abc9c', badge: '#0d9488' },
+  // Hongyuan Heishous
+  QuixoteFantasy:   { primary: '#4f7425', badge: '#4f7425' },
+  // Olympians
+  scelablaze:       { primary: '#ff0000', badge: '#ff0000' },
+  // InshallArtetaliban
+  mooxican:         { primary: '#705a5a', badge: '#705a5a' },
+};
+
+// Fallback cycling palette — used if a manager isn't in TEAM_COLOR_MAP
+// (e.g. a new owner who hasn't been added yet)
 const TEAM_COLORS = [
   '#1E40AF', '#B91C1C', '#15803D', '#7C3AED',
   '#BE185D', '#0F766E', '#C2410C', '#4338CA',
   '#DB2777', '#65A30D', '#9333EA', '#0E7490',
 ];
+
+// Look up a team's colors by owner display name, with graceful fallback
+function getTeamColors(ownerName, index) {
+  const mapped = TEAM_COLOR_MAP[ownerName];
+  if (mapped) return mapped;
+  const fallback = TEAM_COLORS[index % TEAM_COLORS.length];
+  return { primary: fallback, badge: fallback };
+}
+
+// =========================================================================
+//  TEAM ABBREVIATIONS — keyed by Sleeper owner display name
+// -------------------------------------------------------------------------
+//  Used for the small colored badges (e.g. "KTG", "GSA") that appear all
+//  over the site. If a manager isn't in this map, an abbrev is auto-
+//  generated from their team name as a fallback.
+// =========================================================================
+const TEAM_ABBREV_MAP = {
+  Memeworks:       'KTG',  // Kasane Teto Goon Squad
+  DomIsBored:      'GSA',  // God, Syria, and Allar
+  Rlcchamp:        'WAG',  // Wagner Eagles
+  ANormalPrussian: 'SCR',  // The Scranton Silly Gals
+  Realsiib:        'TKE',  // Ta Keo Titans
+  QuixoteFantasy:  'HON',  // Hongyuan Heishous
+  scelablaze:      'OLY',  // Olympians
+  mooxican:        'TAL',  // InshallArtetaliban
+};
+
+// Look up a team's abbreviation by owner display name, with fallback
+function getTeamAbbrev(ownerName, teamName) {
+  return TEAM_ABBREV_MAP[ownerName] || makeAbbrev(teamName);
+}
+
+// =========================================================================
+//  TEAM LOGOS — keyed by Sleeper owner display name
+// -------------------------------------------------------------------------
+//  Drop your logo image files into the project's /public/logos/ folder
+//  (e.g. /public/logos/kasane.png), then reference them here with paths
+//  like '/logos/kasane.png'.
+//
+//  - Square images work best (1:1 aspect ratio). 256x256 or 512x512 is plenty.
+//  - PNG with transparency is ideal so the logo doesn't have a hard background.
+//  - Any team without a logo here falls back to the colored letter badge.
+//  - At very small sizes (e.g. tiny filter checkboxes), the letter badge
+//    is used anyway because logos become illegible.
+// =========================================================================
+const TEAM_LOGO_MAP = {
+  // Memeworks:       '/logos/kasane.png',  // Kasane Teto Goon Squad
+  // DomIsBored:      '/logos/gsa.png',     // God, Syria, and Allar
+  // Rlcchamp:        '/logos/wagner.png',  // Wagner Eagles
+  // ANormalPrussian: '/logos/scranton.png', // The Scranton Silly Gals
+  // Realsiib:        '/logos/takeo.png',   // Ta Keo Titans
+  // QuixoteFantasy:  '/logos/hongyuan.png', // Hongyuan Heishous
+  // scelablaze:      '/logos/olympians.png', // Olympians
+  // mooxican:        '/logos/taliban.png',  // InshallArtetaliban
+};
+
+// Look up a team's logo URL by owner display name. Returns null if none set.
+function getTeamLogo(ownerName) {
+  return TEAM_LOGO_MAP[ownerName] || null;
+}
 
 // ============================================================
 //  NEWS ARTICLES — EDIT THIS to add/change your own articles
@@ -101,19 +193,74 @@ const makeAbbrev = (name) => {
   return (cleaned.slice(0, 3) || 'TM').toUpperCase();
 };
 
+// =========================================================================
+//  <TeamBadge> — unified team-identity component
+// -------------------------------------------------------------------------
+//  Renders a team's logo image at medium/large sizes, falling back to the
+//  colored letter square at small sizes (where logos become illegible) or
+//  when a team doesn't have a logo set.
+//
+//  Sizes available:
+//    xs  — 16px  (filter checkboxes, tiny indicators)         → ALWAYS letter
+//    sm  — 24px  (transaction badges, small lists)            → letter (logos too cramped here)
+//    md  — 32px  (standings rows, lineup rows)                → logo if available
+//    lg  — 40px+ (banners, team tiles, MatchupDetail header)  → logo if available
+//
+//  Specific dimensions can be overridden via the `className` prop if needed.
+// =========================================================================
+function TeamBadge({ team, size = 'md', className = '' }) {
+  if (!team) return null;
+
+  // Size configuration: pixel size + Tailwind class + font size for letter fallback
+  const SIZES = {
+    xs: { box: 'w-4 h-4',  text: 'text-[8px]',  useLogoIfAvailable: false },
+    sm: { box: 'w-6 h-6',  text: 'text-[10px]', useLogoIfAvailable: false },
+    md: { box: 'w-8 h-8',  text: 'text-xs',     useLogoIfAvailable: true  },
+    lg: { box: 'w-10 h-10', text: 'text-sm',    useLogoIfAvailable: true  },
+    xl: { box: 'w-12 h-12', text: 'text-base',  useLogoIfAvailable: true  },
+  };
+  const cfg = SIZES[size] || SIZES.md;
+
+  // If we have a logo AND the size is large enough, render the image.
+  // The onError handler swaps in the letter fallback if the image fails to load.
+  const [imgFailed, setImgFailed] = useState(false);
+  const showLogo = cfg.useLogoIfAvailable && team.logo && !imgFailed;
+
+  if (showLogo) {
+    return (
+      <img
+        src={team.logo}
+        alt={team.abbrev || team.name}
+        onError={() => setImgFailed(true)}
+        className={`${cfg.box} object-contain shrink-0 ${className}`}
+      />
+    );
+  }
+
+  // Letter-badge fallback
+  return (
+    <span
+      className={`${cfg.box} ${cfg.text} flex items-center justify-center font-black text-white rounded-sm shrink-0 ${className}`}
+      style={{ backgroundColor: team.badge || team.primary }}
+    >
+      {team.abbrev}
+    </span>
+  );
+}
+
 // ============ FALLBACK MOCK DATA ============
 // Used only when the Sleeper API can't be reached (e.g. inside the artifact preview sandbox).
 // In a real local environment, the live fetch will succeed and this never runs.
 const FALLBACK_DATA = {
   teams: [
-    { id: '1', rosterId: 1, name: 'Touchdown Tornadoes',  owner: 'mike_22',     avatar: null, wins: 10, losses: 3, ties: 0, pointsFor: 1542.8, pointsAgainst: 1390.2, playerIds: ['4046','6786','4035','4983','6770','8155','6938','5849','4866','4034'], starters: ['4046','6786','4035','4983','6770','8155','6938'], primary: '#1E40AF', abbrev: 'TDT' },
-    { id: '2', rosterId: 2, name: 'Dynasty Destroyers',  owner: 'sarah_b',     avatar: null, wins: 9,  losses: 4, ties: 0, pointsFor: 1510.4, pointsAgainst: 1402.1, playerIds: ['4881','7564','4866','5849','6770','4035','5859','8112','6797','4983'], starters: ['4881','7564','4866','5849','6770','4035','5859'], primary: '#B91C1C', abbrev: 'DYD' },
-    { id: '3', rosterId: 3, name: 'End Zone Empire',      owner: 'dave_w',      avatar: null, wins: 8,  losses: 5, ties: 0, pointsFor: 1488.7, pointsAgainst: 1455.6, playerIds: ['6770','4983','5859','4866','8155','5849','4046','4034','6786','4881'], starters: ['6770','4983','5859','4866','8155','5849','4046'], primary: '#15803D', abbrev: 'EZE' },
-    { id: '4', rosterId: 4, name: 'Hail Mary Heroes',     owner: 'jen_p',       avatar: null, wins: 7,  losses: 6, ties: 0, pointsFor: 1470.2, pointsAgainst: 1465.9, playerIds: ['5849','4866','8112','6797','4881','7564','4035','5859','6770','4983'], starters: ['5849','4866','8112','6797','4881','7564','4035'], primary: '#7C3AED', abbrev: 'HMH' },
-    { id: '5', rosterId: 5, name: 'Pigskin Pirates',      owner: 'tony_k',      avatar: null, wins: 7,  losses: 6, ties: 0, pointsFor: 1455.1, pointsAgainst: 1470.3, playerIds: ['6786','4034','4046','8155','6938','4881','5859','6797','4866','7564'], starters: ['6786','4034','4046','8155','6938','4881','5859'], primary: '#BE185D', abbrev: 'PSP' },
-    { id: '6', rosterId: 6, name: 'Fourth Down Phantoms', owner: 'chris_l',     avatar: null, wins: 6,  losses: 7, ties: 0, pointsFor: 1432.6, pointsAgainst: 1489.4, playerIds: ['4035','6770','5849','6797','4866','4881','7564','6786','4046','8155'], starters: ['4035','6770','5849','6797','4866','4881','7564'], primary: '#0F766E', abbrev: 'FDP' },
-    { id: '7', rosterId: 7, name: 'Red Zone Renegades',   owner: 'alex_h',      avatar: null, wins: 5,  losses: 8, ties: 0, pointsFor: 1410.3, pointsAgainst: 1510.7, playerIds: ['8112','6797','4881','7564','4035','5859','6770','4983','4866','5849'], starters: ['8112','6797','4881','7564','4035','5859','6770'], primary: '#C2410C', abbrev: 'RZR' },
-    { id: '8', rosterId: 8, name: 'Blitz Brigade',        owner: 'pat_m',       avatar: null, wins: 4,  losses: 9, ties: 0, pointsFor: 1380.9, pointsAgainst: 1532.4, playerIds: ['4034','4046','8155','6938','4881','5859','6797','4866','7564','6770'], starters: ['4034','4046','8155','6938','4881','5859','6797'], primary: '#4338CA', abbrev: 'BBR' },
+    { id: '1', rosterId: 1, name: 'Touchdown Tornadoes',  owner: 'mike_22',     avatar: null, wins: 10, losses: 3, ties: 0, pointsFor: 1542.8, pointsAgainst: 1390.2, playerIds: ['4046','6786','4035','4983','6770','8155','6938','5849','4866','4034'], starters: ['4046','6786','4035','4983','6770','8155','6938'], primary: '#1E40AF', badge: '#1E40AF', abbrev: 'TDT' },
+    { id: '2', rosterId: 2, name: 'Dynasty Destroyers',  owner: 'sarah_b',     avatar: null, wins: 9,  losses: 4, ties: 0, pointsFor: 1510.4, pointsAgainst: 1402.1, playerIds: ['4881','7564','4866','5849','6770','4035','5859','8112','6797','4983'], starters: ['4881','7564','4866','5849','6770','4035','5859'], primary: '#B91C1C', badge: '#B91C1C', abbrev: 'DYD' },
+    { id: '3', rosterId: 3, name: 'End Zone Empire',      owner: 'dave_w',      avatar: null, wins: 8,  losses: 5, ties: 0, pointsFor: 1488.7, pointsAgainst: 1455.6, playerIds: ['6770','4983','5859','4866','8155','5849','4046','4034','6786','4881'], starters: ['6770','4983','5859','4866','8155','5849','4046'], primary: '#15803D', badge: '#15803D', abbrev: 'EZE' },
+    { id: '4', rosterId: 4, name: 'Hail Mary Heroes',     owner: 'jen_p',       avatar: null, wins: 7,  losses: 6, ties: 0, pointsFor: 1470.2, pointsAgainst: 1465.9, playerIds: ['5849','4866','8112','6797','4881','7564','4035','5859','6770','4983'], starters: ['5849','4866','8112','6797','4881','7564','4035'], primary: '#7C3AED', badge: '#7C3AED', abbrev: 'HMH' },
+    { id: '5', rosterId: 5, name: 'Pigskin Pirates',      owner: 'tony_k',      avatar: null, wins: 7,  losses: 6, ties: 0, pointsFor: 1455.1, pointsAgainst: 1470.3, playerIds: ['6786','4034','4046','8155','6938','4881','5859','6797','4866','7564'], starters: ['6786','4034','4046','8155','6938','4881','5859'], primary: '#BE185D', badge: '#BE185D', abbrev: 'PSP' },
+    { id: '6', rosterId: 6, name: 'Fourth Down Phantoms', owner: 'chris_l',     avatar: null, wins: 6,  losses: 7, ties: 0, pointsFor: 1432.6, pointsAgainst: 1489.4, playerIds: ['4035','6770','5849','6797','4866','4881','7564','6786','4046','8155'], starters: ['4035','6770','5849','6797','4866','4881','7564'], primary: '#0F766E', badge: '#0F766E', abbrev: 'FDP' },
+    { id: '7', rosterId: 7, name: 'Red Zone Renegades',   owner: 'alex_h',      avatar: null, wins: 5,  losses: 8, ties: 0, pointsFor: 1410.3, pointsAgainst: 1510.7, playerIds: ['8112','6797','4881','7564','4035','5859','6770','4983','4866','5849'], starters: ['8112','6797','4881','7564','4035','5859','6770'], primary: '#C2410C', badge: '#C2410C', abbrev: 'RZR' },
+    { id: '8', rosterId: 8, name: 'Blitz Brigade',        owner: 'pat_m',       avatar: null, wins: 4,  losses: 9, ties: 0, pointsFor: 1380.9, pointsAgainst: 1532.4, playerIds: ['4034','4046','8155','6938','4881','5859','6797','4866','7564','6770'], starters: ['4034','4046','8155','6938','4881','5859','6797'], primary: '#4338CA', badge: '#4338CA', abbrev: 'BBR' },
   ],
   // Sample player database (real Sleeper player IDs map to real NFL players)
   players: {
@@ -176,18 +323,22 @@ async function fetchPastSeason(leagueId) {
   const standings = rosters.map((roster, i) => {
     const owner = users.find(u => u.user_id === roster.owner_id);
     const teamName = owner?.metadata?.team_name || owner?.display_name || `Team ${roster.roster_id}`;
+    const ownerName = owner?.display_name || 'Unknown';
+    const colors = getTeamColors(ownerName, i);
     return {
       id: String(roster.roster_id),
       rosterId: roster.roster_id,
       name: teamName,
-      owner: owner?.display_name || 'Unknown',
+      owner: ownerName,
       wins: roster.settings?.wins || 0,
       losses: roster.settings?.losses || 0,
       ties: roster.settings?.ties || 0,
       pointsFor: (roster.settings?.fpts || 0) + (roster.settings?.fpts_decimal || 0) / 100,
       pointsAgainst: (roster.settings?.fpts_against || 0) + (roster.settings?.fpts_against_decimal || 0) / 100,
-      primary: TEAM_COLORS[i % TEAM_COLORS.length],
-      abbrev: makeAbbrev(teamName),
+      primary: colors.primary,
+      badge: colors.badge,
+      abbrev: getTeamAbbrev(ownerName, teamName),
+      logo: getTeamLogo(ownerName),
     };
   }).sort((a, b) => b.wins - a.wins || b.pointsFor - a.pointsFor);
 
@@ -288,11 +439,13 @@ function useLeagueData() {
         const teams = rosters.map((roster, i) => {
           const owner = users.find(u => u.user_id === roster.owner_id);
           const teamName = owner?.metadata?.team_name || owner?.display_name || `Team ${roster.roster_id}`;
+          const ownerName = owner?.display_name || 'Unknown';
+          const colors = getTeamColors(ownerName, i);
           return {
             id: String(roster.roster_id),
             rosterId: roster.roster_id,
             name: teamName,
-            owner: owner?.display_name || 'Unknown',
+            owner: ownerName,
             avatar: owner?.avatar ? `${SLEEPER_CDN}/avatars/thumbs/${owner.avatar}` : null,
             wins: roster.settings?.wins || 0,
             losses: roster.settings?.losses || 0,
@@ -301,8 +454,10 @@ function useLeagueData() {
             pointsAgainst: (roster.settings?.fpts_against || 0) + (roster.settings?.fpts_against_decimal || 0) / 100,
             playerIds: roster.players || [],
             starters: roster.starters || [],
-            primary: TEAM_COLORS[i % TEAM_COLORS.length],
-            abbrev: makeAbbrev(teamName),
+            primary: colors.primary,
+            badge: colors.badge,
+            abbrev: getTeamAbbrev(ownerName, teamName),
+            logo: getTeamLogo(ownerName),
           };
         }).sort((a, b) => b.wins - a.wins || b.pointsFor - a.pointsFor);
 
@@ -527,9 +682,7 @@ function MatchupTeamRow({ team, score, won }) {
   return (
     <div className="flex justify-between items-center">
       <div className="flex items-center gap-3 min-w-0">
-        <div className="w-8 h-8 flex items-center justify-center font-black text-white text-xs rounded-sm shrink-0" style={{ backgroundColor: team.primary }}>
-          {team.abbrev}
-        </div>
+        <TeamBadge team={team} size="md" />
         <div className="min-w-0">
           <div className={`font-bold truncate ${won ? 'text-gray-900' : 'text-gray-700'}`}>{team.name}</div>
           <div className="text-xs text-gray-500">{team.wins}-{team.losses}{team.ties ? `-${team.ties}` : ''}</div>
@@ -547,9 +700,7 @@ function MatchupColumnRow({ team, score, won }) {
   return (
     <div className="flex items-center justify-between py-0.5">
       <div className="flex items-center gap-2 min-w-0">
-        <div className="w-6 h-6 flex items-center justify-center font-black text-white text-[10px] rounded-sm shrink-0" style={{ backgroundColor: team.primary }}>
-          {team.abbrev}
-        </div>
+        <TeamBadge team={team} size="sm" />
         <span className={`text-sm truncate ${won ? 'font-bold text-gray-900' : 'font-semibold text-gray-600'}`}>
           {team.name}
         </span>
@@ -772,9 +923,7 @@ function StandingsPage({ data, setPage, setActiveTeam, goToTeamHub }) {
             >
               <span className="col-span-1 text-gray-400 font-bold text-sm">{i + 1}</span>
               <div className="col-span-5 flex items-center gap-3 min-w-0">
-                <div className="w-7 h-7 flex items-center justify-center font-black text-white text-xs rounded-sm shrink-0" style={{ backgroundColor: t.primary }}>
-                  {t.abbrev}
-                </div>
+                <TeamBadge team={t} size="md" />
                 <div className="min-w-0">
                   <div className="text-gray-900 font-bold truncate hover:text-blue-700">{t.name}</div>
                   <div className="text-xs text-gray-500 truncate">{t.owner}</div>
@@ -1123,7 +1272,7 @@ function TeamRoster({ team, players, openPlayer }) {
           <div className="px-6 py-3 border-b border-gray-200 bg-gray-50 flex items-center gap-3">
             <span
               className="inline-block px-2.5 py-1 text-xs font-black text-white rounded-none"
-              style={{ backgroundColor: team.primary }}
+              style={{ backgroundColor: team.badge || team.primary }}
             >
               {pos}
             </span>
@@ -1189,7 +1338,7 @@ function TeamSchedule({ team, teams, matchupsByWeek, currentWeek }) {
               <div className="text-xs font-bold text-gray-500 uppercase">Week</div>
               <div className="text-2xl font-display font-black text-gray-900">{r.week}</div>
             </div>
-            <div className="w-12 h-12 rounded-none flex items-center justify-center font-black text-white text-xs shrink-0" style={{ backgroundColor: r.opp?.primary || '#999' }}>
+            <div className="w-12 h-12 rounded-none flex items-center justify-center font-black text-white text-xs shrink-0" style={{ backgroundColor: (r.opp?.badge || r.opp?.primary) || '#999' }}>
               {r.opp?.abbrev || '??'}
             </div>
             <div className="flex-1 min-w-0">
@@ -1354,9 +1503,7 @@ function TransactionRow({ txn, teamByRoster, playerName, playerPos, formatDate, 
               onClick={() => goToTeam(team)}
               className="flex items-center gap-2 rounded-none px-1.5 py-1 -mx-1.5 hover:bg-gray-100 transition-colors"
             >
-              <span className="w-6 h-6 flex items-center justify-center font-black text-white text-[10px] rounded-sm" style={{ backgroundColor: team.primary }}>
-                {team.abbrev}
-              </span>
+              <TeamBadge team={team} size="sm" />
               <span className="text-sm font-bold text-gray-900 hover:text-blue-700">{team.name}</span>
             </button>
           );
@@ -1694,9 +1841,7 @@ function RecordsPage({ data, setPage, setActiveTeam, openMatchup, goToTeamHub })
                 >
                   <div className="text-3xl font-display font-black text-amber-700 shrink-0">{c.season}</div>
                   <div className="flex items-center gap-3 min-w-0 flex-1">
-                    <span className="w-9 h-9 flex items-center justify-center font-black text-white text-xs rounded-sm shrink-0" style={{ backgroundColor: c.champion.primary }}>
-                      {c.champion.abbrev}
-                    </span>
+                    <TeamBadge team={c.champion} size="lg" />
                     <div className="min-w-0">
                       <div className="font-bold text-gray-900 truncate">{c.champion.name}</div>
                       <div className="text-xs text-gray-500 truncate">{c.champion.owner}</div>
@@ -1929,12 +2074,7 @@ function BracketSlot({ team, isWinner }) {
   }
   return (
     <div className={`flex items-center gap-2 px-3 py-2.5 ${isWinner ? 'bg-blue-50' : ''}`}>
-      <span
-        className="w-6 h-6 flex items-center justify-center font-black text-white text-[10px] rounded-sm shrink-0"
-        style={{ backgroundColor: team.primary }}
-      >
-        {team.abbrev}
-      </span>
+      <TeamBadge team={team} size="sm" />
       <span className={`text-sm truncate flex-1 ${isWinner ? 'font-black text-gray-900' : 'font-semibold text-gray-600'}`}>
         {team.name}
       </span>
@@ -2021,9 +2161,7 @@ function TeamLineup({ team, raw, score, players, won, openPlayer }) {
       {/* Header */}
       <div className="flex items-center justify-between pb-3 mb-3 border-b border-gray-200">
         <div className="flex items-center gap-2 min-w-0">
-          <span className="w-7 h-7 flex items-center justify-center font-black text-white text-[10px] rounded-sm shrink-0" style={{ backgroundColor: team.primary }}>
-            {team.abbrev}
-          </span>
+          <TeamBadge team={team} size="md" />
           <span className={`font-bold truncate ${won ? 'text-gray-900' : 'text-gray-600'}`}>{team.name}</span>
         </div>
         <span className={`text-2xl font-display font-black ml-2 shrink-0 ${won ? 'text-gray-900' : 'text-gray-400'}`}>
@@ -2077,9 +2215,7 @@ function SeasonHistoryCard({ season, players, openMatchup, goToTeam }) {
             <div className="flex items-center gap-2">
               <span className="text-xs font-black text-amber-600 uppercase tracking-widest">🏆 Champion</span>
               <div className="flex items-center gap-2">
-                <span className="w-6 h-6 flex items-center justify-center font-black text-white text-[10px] rounded-sm" style={{ backgroundColor: season.champion.primary }}>
-                  {season.champion.abbrev}
-                </span>
+                <TeamBadge team={season.champion} size="sm" />
                 <span className="font-bold text-gray-900">{season.champion.name}</span>
               </div>
             </div>
@@ -2110,9 +2246,7 @@ function SeasonHistoryCard({ season, players, openMatchup, goToTeam }) {
           >
             <span className="col-span-1 text-gray-400 font-bold text-sm">{i + 1}</span>
             <div className="col-span-6 flex items-center gap-3 min-w-0">
-              <span className="w-6 h-6 flex items-center justify-center font-black text-white text-[10px] rounded-sm shrink-0" style={{ backgroundColor: t.primary }}>
-                {t.abbrev}
-              </span>
+              <TeamBadge team={t} size="sm" />
               <div className="min-w-0">
                 <div className={`font-bold text-gray-900 truncate ${handleClick ? 'hover:text-blue-700' : ''}`}>{t.name}</div>
                 <div className="text-xs text-gray-500 truncate">{t.owner}</div>
@@ -2467,9 +2601,7 @@ function PlayersPage({ data, openPlayer }) {
                           }`}>
                             {checked && <span className="text-white text-[10px] font-black leading-none">✓</span>}
                           </span>
-                          <span className="w-6 h-6 flex items-center justify-center font-black text-white text-[10px] rounded-sm shrink-0" style={{ backgroundColor: t.primary }}>
-                            {t.abbrev}
-                          </span>
+                          <TeamBadge team={t} size="sm" />
                           <span className="text-sm font-bold text-gray-900 truncate flex-1">{t.name}</span>
                         </button>
                       );
@@ -2485,9 +2617,7 @@ function PlayersPage({ data, openPlayer }) {
                   <button key={t.id} onClick={() => toggleTeamFilter(t.id)}
                     title="Remove from filter"
                     className="flex items-center gap-1.5 px-2 py-1 rounded-none text-xs font-bold bg-gray-100 hover:bg-gray-200 transition-colors">
-                    <span className="w-4 h-4 flex items-center justify-center font-black text-white text-[8px] rounded-sm shrink-0" style={{ backgroundColor: t.primary }}>
-                      {t.abbrev}
-                    </span>
+                    <TeamBadge team={t} size="xs" />
                     <span className="text-gray-700">{t.name}</span>
                     <span className="text-gray-400 ml-0.5">×</span>
                   </button>
@@ -2544,7 +2674,7 @@ function PlayersPage({ data, openPlayer }) {
                     {owner && (
                       <span
                         className="text-[10px] font-black text-white px-2 py-0.5 rounded-none shrink-0"
-                        style={{ backgroundColor: owner.primary }}
+                        style={{ backgroundColor: owner.badge || owner.primary }}
                         title={`Rostered by ${owner.name}`}
                       >
                         {owner.abbrev}
@@ -2570,7 +2700,7 @@ function PlayersPage({ data, openPlayer }) {
                     {owner && (
                       <span
                         className="text-[10px] font-black text-white px-2 py-0.5 rounded-none shrink-0"
-                        style={{ backgroundColor: owner.primary }}
+                        style={{ backgroundColor: owner.badge || owner.primary }}
                         title={`Rostered by ${owner.name}`}
                       >
                         {owner.abbrev}
@@ -2859,9 +2989,7 @@ function MatchupDetailPage({ matchupKey, data, setPage, setActiveTeam, openPlaye
               onClick={() => goToTeamHub(teamA.id)}
               className="text-left flex items-center gap-3 min-w-0 hover:opacity-80 transition-opacity"
             >
-              <span className="w-12 h-12 flex items-center justify-center font-black text-white rounded-sm shrink-0" style={{ backgroundColor: teamA.primary }}>
-                {teamA.abbrev}
-              </span>
+              <TeamBadge team={teamA} size="xl" />
               <div className="min-w-0">
                 <div className={`text-xl font-display font-black truncate ${aWon || !played ? 'text-white' : 'text-blue-300'}`}>{teamA.name}</div>
                 <div className="text-xs text-blue-200 truncate">{teamA.owner}</div>
@@ -2886,9 +3014,7 @@ function MatchupDetailPage({ matchupKey, data, setPage, setActiveTeam, openPlaye
                 <div className={`text-xl font-display font-black truncate ${bWon || !played ? 'text-white' : 'text-blue-300'}`}>{teamB.name}</div>
                 <div className="text-xs text-blue-200 truncate">{teamB.owner}</div>
               </div>
-              <span className="w-12 h-12 flex items-center justify-center font-black text-white rounded-sm shrink-0" style={{ backgroundColor: teamB.primary }}>
-                {teamB.abbrev}
-              </span>
+              <TeamBadge team={teamB} size="xl" />
             </button>
           </div>
         </div>
@@ -3033,9 +3159,7 @@ function FormCard({ team, games, openMatchup }) {
   return (
     <div className="bg-white rounded-none border-2 border-gray-200 p-5">
       <div className="flex items-center gap-2 mb-4">
-        <span className="w-7 h-7 flex items-center justify-center font-black text-white text-[10px] rounded-sm" style={{ backgroundColor: team.primary }}>
-          {team.abbrev}
-        </span>
+        <TeamBadge team={team} size="md" />
         <span className="font-bold text-gray-900 truncate">{team.name}</span>
         <span className="text-xs font-black text-gray-500 uppercase tracking-widest ml-auto">Last {games.length}</span>
       </div>
@@ -3424,9 +3548,7 @@ function PlayerPage({ playerId, data, setPage, setActiveTeam, goBack, canGoBack,
                       onClick={() => goToTeamHub(rosteredBy.id)}
                       className="flex items-center gap-3 w-full text-left rounded-none p-2 -m-2 hover:bg-gray-50 transition-colors"
                     >
-                      <span className="w-10 h-10 flex items-center justify-center font-black text-white text-sm rounded-sm shrink-0" style={{ backgroundColor: rosteredBy.primary }}>
-                        {rosteredBy.abbrev}
-                      </span>
+                      <TeamBadge team={rosteredBy} size="lg" />
                       <div className="min-w-0">
                         <div className="font-bold text-gray-900 truncate hover:text-blue-700">{rosteredBy.name}</div>
                         <div className="text-xs text-gray-500 truncate">{rosteredBy.owner}</div>
