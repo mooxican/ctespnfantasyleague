@@ -215,7 +215,7 @@ const articles = [
     excerpt: 'The Allars have released QB Drew Lock.',
     image: 'https://images2.minutemediacdn.com/image/upload/c_crop,x_0,y_0,w_4640,h_2610/c_fill,w_1440,ar_1440:810,f_auto,q_auto,g_auto/images/GettyImages/mmsport/36/01k56pbphx0qse0xzjbn.jpg',
     body: "The reigning CTE Bowl Champions have released backup QB Drew Lock, who was picked up just last month as a presumable training camp body for this team. \n\n Drew Lock goes back to being a free agent, and is likely to not be picked up by any team once he clears past waivers.",
-    teamIds: [7, 8],
+    teamIds: [2],
   },
 ];
 
