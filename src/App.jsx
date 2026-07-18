@@ -262,7 +262,7 @@ const articles = [
   date: '2026-07-01',
     category: 'NEWS',
     title: "InshallArtetaliban GM reportedly inebriated when trading for 1st overall pick.",
-    excerpt: 'InshallArtetaliban GM Mooxican Mapping claimed to be 'drunk and still can trade' after trade for first overall pick was confirmed.',
+    excerpt: 'InshallArtetaliban GM Mooxican Mapping claimed to be "drunk and still can trade" after trade for first overall pick was confirmed.',
     image: 'https://www.totalwine.com/dynamic/x1000,6pk/images/120440817/120440817-2-fr.png',
     body: "After the trade for the 1st overall pick in this 2026 #CTESPN Draft was confirmed to be processed, InshallArtetaliban GM Mooxican Mapping made the following comment after the general manager from the Kasane Teto Goon Squad called him a madlad: 'Bang. I'm drunk and I still trade.' \n\n This does raise concerns over the habits of the Talibani front office. We attempted to reach them for a comment, to no response from the Charlie Kirk Bowl winners.",
     teamIds: [8],
